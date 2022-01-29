@@ -11,5 +11,5 @@ To download, build and install from this repository:
 ```
 install.packages("devtools")
 library(devtools)
-install_github("imarinfr/vf1/source")
+install_github("imarinfr/opiApp/source")
 ```
