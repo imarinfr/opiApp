@@ -1,4 +1,4 @@
-source("../utils/serverUtils.r", local = TRUE)
+source("utils/serverUtils.r", local = TRUE)
 # test server
 server <- future({
   set.seed(Sys.time())
