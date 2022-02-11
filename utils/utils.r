@@ -1,12 +1,8 @@
-######################################
-# shared functions among Shiny modules
-######################################
 #######################
 # Multipurpose routines
 #######################
 # error text
 errortxt <- function(txt) return(paste("<span style=\"color:#FF0000\">", txt, "</span>"))
-
 # error message
 errorMessage <- function(txt) {
   showModal(modalDialog(
@@ -15,14 +11,10 @@ errorMessage <- function(txt) {
     easyClose = TRUE))
 }
 # template of the plot to show
-templatePlot <- function(locs, eye) {
-  expf <- 1.05 # expansion factor
-  par(mar = c(0, 0, 0, 0))
-  lty <- 1
-  lwd <- 1
-  linColor <- "lightgray"
-  ellipseColor <- "gray92"
-  pchColor <- "black"
+templatePlot <- function(locs, eye, expf = 1.05, lty = 1, lwd = 1,
+                         bg = "white", linCol = "lightgray",
+                         ellipseColor = "gray92") {
+  par(mar = c(0, 0, 0, 0), bg = bg)
   if(eye == "L") x <- -15
   else x <- 15
   xlim <- c(-30, 30)
@@ -41,12 +33,12 @@ templatePlot <- function(locs, eye) {
   plot(0, 0, typ = "n", xlim = expf * xlim, ylim = expf * ylim, asp = 1,
        axes = FALSE, ann = FALSE, bty = "n")
   draw.ellipse(x, -1.5, 2.75, 3.75, col = ellipseColor, border = ellipseColor)
-  lines(xlim, c(0, 0), col = linColor, lty = lty, lwd = lwd)
-  lines(c(0, 0), ylim, col = linColor, lty = lty, lwd = lwd)
-  text(expf * xlim[1], 0, xlim[1], adj = c(1, 0.5))
-  text(expf * xlim[2], 0, xlim[2], adj = c(0, 0.5))
-  text(0, expf * ylim[1], ylim[1], adj = c(0.5, 1))
-  text(0, expf * ylim[2], ylim[2], adj = c(0.5, 0))
+  lines(xlim, c(0, 0), col = linCol, lty = lty, lwd = lwd)
+  lines(c(0, 0), ylim, col = linCol, lty = lty, lwd = lwd)
+  text(expf * xlim[1], 0, xlim[1], adj = c(1, 0.5), col = linCol)
+  text(expf * xlim[2], 0, xlim[2], adj = c(0, 0.5), col = linCol)
+  text(0, expf * ylim[1], ylim[1], adj = c(0.5, 1), col = linCol)
+  text(0, expf * ylim[2], ylim[2], adj = c(0.5, 0), col = linCol)
   l <- 10
   ang <- seq(0, 2 * pi, length.out = 100)
   while(l <= r) {
@@ -56,25 +48,11 @@ templatePlot <- function(locs, eye) {
     x[x < xlim[1] | x > xlim[2]] <- NA
     x[y < ylim[1] | y > ylim[2]] <- NA
     y[y < ylim[1] | y > ylim[2]] <- NA
-    lines(x, y, col = linColor, lty = lty, lwd = lwd)
+    lines(x, y, col = linCol, lty = lty, lwd = lwd)
     l <- l + 10
   }
 }
-# show plot with updated data
-showPlot <- function(locs, eye, foveadb) {
-  if(is.null(locs)) return(NULL)
-  templatePlot(locs, eye)
-  alpha <- "AA"
-  # unfinished symbols are presented in gray, finished symbols in black
-  cols <- brewer.pal(8, "Dark2")[1:max(locs$w, na.rm = TRUE)]
-  cols[1] <- "#000000"
-  fovcol <- "black"
-  text(0, 0, foveadb, col = fovcol, font = 2)
-  isna <- is.na(locs$th)
-  if(any(isna))  points(locs$x[isna], locs$y[isna], pch = 19, cex = 0.75, col = paste0(cols[locs$w[isna]], alpha))
-  if(any(!isna)) text(locs$x[!isna], locs$y[!isna], locs$th[!isna], col = cols[locs$w[!isna]], font = 2)
-}
-# format secods to mm:ss
+# format seconds to mm:ss
 secsToMins <- function(secs) {
   mm <- as.character(secs %/% 60)
   ss <- as.character(floor((secs / 60 - secs %/% 60) * 60))
@@ -151,46 +129,7 @@ fillPtsTable <- function(locs, readOnly = FALSE) {
 }
 # show grid points
 showGrid <- function(locs) {
-  expf <- 1.05 # expansion factor
-  par(mar = c(0, 0, 0, 0))
-  lty <- 1
-  lwd <- 1
-  linColor     <- "lightgray"
-  ellipseColor <- "gray92"
-  xlim <- c(-30, 30)
-  ylim <- c(-30, 30)
-  if(!all(is.na(locs$x))) {
-    if(min(locs$x, na.rm = TRUE) < xlim[1]) xlim[1] <- min(locs$x, na.rm = TRUE)
-    if(max(locs$x, na.rm = TRUE) > xlim[2]) xlim[2] <- max(locs$x, na.rm = TRUE)
-  }
-  if(!all(is.na(locs$y))) {
-    if(min(locs$y, na.rm = TRUE) < ylim[1]) ylim[1] <- min(locs$y, na.rm = TRUE)
-    if(max(locs$y, na.rm = TRUE) > ylim[2]) ylim[2] <- max(locs$y, na.rm = TRUE)
-  }
-  xlim <- 10 * sign(xlim) * ceiling(abs(xlim / 10))
-  ylim <- 10 * sign(ylim) * ceiling(abs(ylim / 10))
-  r <- max(c(xlim, ylim))
-  plot(0, 0, typ = "n", xlim = expf * xlim, ylim = expf * ylim, asp = 1,
-       axes = FALSE, ann = FALSE, bty = "n")
-  draw.ellipse(15, -1.5, 2.75, 3.75, col = ellipseColor, border = ellipseColor)
-  lines(xlim, c(0, 0), col = linColor, lty = lty, lwd = lwd)
-  lines(c(0, 0), ylim, col = linColor, lty = lty, lwd = lwd)
-  text(expf * xlim[1], 0, xlim[1], adj = c(1, 0.5))
-  text(expf * xlim[2], 0, xlim[2], adj = c(0, 0.5))
-  text(0, expf * ylim[1], ylim[1], adj = c(0.5, 1))
-  text(0, expf * ylim[2], ylim[2], adj = c(0.5, 0))
-  l <- 10
-  ang <- seq(0, 2 * pi, length.out = 100)
-  while(l <= r) {
-    x <- sapply(ang, function(a) l * cos(a))
-    y <- sapply(ang, function(a) l * sin(a))
-    y[x < xlim[1] | x > xlim[2]] <- NA
-    x[x < xlim[1] | x > xlim[2]] <- NA
-    x[y < ylim[1] | y > ylim[2]] <- NA
-    y[y < ylim[1] | y > ylim[2]] <- NA
-    lines(x, y, col = linColor, lty = lty, lwd = lwd)
-    l <- l + 10
-  }
+  templatePlot(locs, "R")
   if(!all(is.na(locs))) {
     cols <- brewer.pal(8, "Dark2")[1:max(locs$w, na.rm = TRUE)]
     cols[1] <- "#000000"
@@ -278,7 +217,7 @@ saveNewPatient <- function(input, patientTable) {
   df$modified  <- df$created
   patientTable <- rbind(patientTable, df) # append new record
   patientTable <- patientTable[order(patientTable$id),] # sort data
-  save(patientTable, file = "../config/patientdb.rda")
+  save(patientTable, file = "config/patientdb.rda")
   return(patientTable)
 }
 # save modified patient
@@ -289,13 +228,13 @@ saveModifiedPatient <- function(input, patientTable) {
   df$modified        <- format(Sys.time(), "%m/%d/%Y %H:%M:%S")
   patientTable[idx,] <- df                                    # modify record
   patientTable       <- patientTable[order(patientTable$id),] # sort data by ID
-  save(patientTable, file = "../config/patientdb.rda")
+  save(patientTable, file = "config/patientdb.rda")
   return(patientTable)
 }
 # delete patient
 deletePatient <- function(idx, patientTable) {
   patientTable <- patientTable[-idx,] # delete record
-  save(patientTable, file = "../config/patientdb.rda")
+  save(patientTable, file = "config/patientdb.rda")
   return(patientTable)
 }
 # clear all data from fields
@@ -335,6 +274,24 @@ getPatientAge <- function(dob, date) {
 #####################
 # Routines for client
 #####################
+resPlot <- function(loc, locs, eye, foveadb) {
+  if(is.null(locs)) return(NULL)
+  templatePlot(locs, eye, bg = "gray35",
+               linCol = "gray50",
+               ellipseColor = "gray10")
+  alpha <- "AA"
+  # unfinished symbols are presented in gray, finished symbols in black
+  cols <- brewer.pal(8, "Dark2")[1:max(locs$w, na.rm = TRUE)]
+  cols[1] <- "#FFFFFF"
+  fovcol <- "#FFFFFF"
+  text(0, 0, foveadb, col = fovcol, font = 2)
+  isna <- is.na(locs$th)
+  if(any(isna))  points(locs$x[isna], locs$y[isna], pch = 19, col = paste0(cols[locs$w[isna]], alpha))
+  if(any(!isna)) text(locs$x[!isna], locs$y[!isna], locs$th[!isna], col = cols[locs$w[!isna]], font = 2)
+  # if presenting at loc, then loc receives a special treatment
+  if(!is.null(loc)) draw.circle(loc$x, loc$y, radius = loc$size,
+                                col = paste0(loc$col, alpha), border = NA)
+}
 falsePositivePars <- function(locs, w) {
   # generate an invisible stimulus
   idx <- sample(1:nrow(locs), 1)
@@ -342,14 +299,15 @@ falsePositivePars <- function(locs, w) {
 }
 falseNegativePars <- function(res, w) {
   # keep only the dimmest stimulus and select one at random
-  resMin <- resMin[res$seen,c("x", "y", "level")]
-  res <- unique(resMin[,c("x", "y")])
-  for(i in 1:nrow(res))
-    res$db[i] <- min(resMin$level[which(resMin$x == res$x[i] & resMin$y == res$y[i])])
-  db <- sample(res$db, 1)
+  res <- res[res$seen,c("x", "y", "level")]
+  if(nrow(res) == 0) return(NULL)
+  ur <- unique(res[,c("x", "y")])
+  for(i in 1:nrow(ur))
+    res$db[i] <- min(res$level[which(res$x == ur$x[i] & res$y == ur$y[i])])
+  idx <- sample(1:nrow(res), 1)
   # generate a very visible stimulus
-  # TODO criterion. So far, I subtract 5 db
-  return(data.frame(x = res$x[idx], y = res$y[idx], w = w, db = ifelse(db < 5, 0, db - 5)))
+  db <- ifelse(res$db[idx] < 5, 0, res$db[idx] - 5) # TODO criterion. So far, I subtract 5 db
+  return(data.frame(x = res$x[idx], y = res$y[idx], w = w, db = db))
 }
 enableElements <- function(ids) lapply(ids, enable)
 disableElements <- function(ids) lapply(ids, disable)
@@ -369,19 +327,31 @@ parsePatientOutput <- function(patient) {
   return(HTML(txt))
 }
 # prepare test results to show next to the plot
-renderResult <- function(res, npoints) {
-  if(!is.null(res)) {
-    x <- tail(res$x, 1)
-    y <- tail(res$y, 1)
-    level <- tail(res$level, 1)
-    time <- tail(res$time, 1)
-    respWin <- tail(res$respWin, 1)
-    seen <- tail(res$seen, 1)
+renderResult <- function(trialRes, res, npoints) {
+  if(is.null(trialRes)) {
+    rtsd <- rtm <- respWintxt <- seentxt <-
+      level <- x <- y <- time <- ""
+    nfinished <- fp <- fpt <- fpp <- fn <-
+      fnt <- fnp <- 0
+    npres <- resBelow150 <- resAbove600 <- 0
+    tttxt <- tptxt <- "00:00"
+  } else {
+    x <- trialRes$x
+    y <- trialRes$y
+    level <- trialRes$level
+    time <- trialRes$time
+    respWin <- trialRes$respWin
+    seen <- trialRes$seen
     if(seen) {
       seentxt <- paste("Stimulus <strong>seen</strong>", "in", time, "ms")
     } else
       seentxt <- paste("Stimulus <strong>not seen</strong>")
-    respWintxt <- paste("Response window was", respWin, "ms")
+    if(trialRes$type == "N" || trialRes$type == "F")
+      respWintxt <- paste("Response window was", respWin, "ms")
+    else if(trialRes$type == "FP")
+      respWintxt <- paste("False positive trial")
+    else if(trialRes$type == "FN")
+      respWintxt <- paste("False negative trial")
     npres <- sum(res$type == "N")
     nfinished <- sum(res$done) # locations finished
     # compute false positives and negatives
@@ -403,11 +373,6 @@ renderResult <- function(res, npoints) {
     # calculate test time and pause time
     tttxt <- secsToMins(res$tt[length(res$tt)])  
     tptxt <- secsToMins(res$tp[length(res$tp)])
-  } else {
-    rtsd <- rtm <- respWintxt <- seentxt <- level <- x <- y <- time <- ""
-    nfinished <- fp <- fpt <- fpp <- fn <- fnt <- fnp <- 0
-    npres <- resBelow150 <- resAbove600 <- 0
-    tttxt <- tptxt <- "00:00"
   }
   if(x != "") x <- paste(x, "degrees")
   if(y != "") y <- paste(y, "degrees")
@@ -477,9 +442,23 @@ prepareToSave <- function(patient, machine, perimetry, val, grid, eye,
 #####################
 # Routines for report
 #####################
+# show plot
+showPlot <- function(locs, eye, foveadb) {
+  if(is.null(locs)) return(NULL)
+  templatePlot(locs, eye)
+  alpha <- "AA"
+  # unfinished symbols are presented in gray, finished symbols in black
+  cols <- brewer.pal(8, "Dark2")[1:max(locs$w, na.rm = TRUE)]
+  cols[1] <- "#000000"
+  fovcol <- "black"
+  text(0, 0, foveadb, col = fovcol, font = 2)
+  isna <- is.na(locs$th)
+  if(any(isna))  points(locs$x[isna], locs$y[isna], pch = 19, cex = 0.75, col = paste0(cols[locs$w[isna]], alpha))
+  if(any(!isna)) text(locs$x[!isna], locs$y[!isna], locs$th[!isna], col = cols[locs$w[!isna]], font = 2)
+}
 # get all available reports and sort them by date, then time
 getReports <- function(patientTable) {
-  fnames <- paste("../results", dir("../results/", pattern = "*.csv"), sep = "/")
+  fnames <- paste("results", dir("results/", pattern = "*.csv"), sep = "/")
   reports <- do.call(rbind, lapply(fnames, function(ff) {
     dat <- read.csv(ff, stringsAsFactors = FALSE)
     return(dat[,setdiff(names(dat), paste0("l", 1:nrow(grids[[dat$grid[1]]]$locs)))])
@@ -495,10 +474,10 @@ getReports <- function(patientTable) {
 }
 # get record from results
 getResults <- function(dat) {
-  fname <- paste0("../results/", paste(dat$id, dat$grid, sep = "_"), ".csv")
+  fname <- paste0("results/", paste(dat$id, dat$grid, sep = "_"), ".csv")
   record <- read.csv(fname, stringsAsFactors = FALSE)
   record <- record[which(record$date == dat$date[1] & record$time == dat$time[1]),]
-  fname <- paste0("../results/logs/", paste(dat$id, dat$grid, 
+  fname <- paste0("results/logs/", paste(dat$id, dat$grid, 
                                             gsub("-", "", record$date),
                                             gsub(":", "", record$time), sep = "_"), ".csv")
   res <- read.csv(fname, stringsAsFactors = FALSE)

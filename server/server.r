@@ -1,28 +1,26 @@
-source("serverUtils.r", local = TRUE)
+source("../utils/serverUtils.r", local = TRUE)
 # test server
 server <- future({
   set.seed(Sys.time())
-  cmd <- "opiIddle"
   pars <- NULL
   machine <- NULL
   repeat{
+    Sys.sleep(0.01) # let the system breath
+    cmd <- "opiIdle" # idle until instructions received
     #################
     # OPI Get Message
     #################
-    # listen for instructions from the GUI. If command is opiIddle, then wait a bit,
+    # listen for instructions from the GUI. If command is opiIdle, then wait a bit,
     # otherwise, go ahead
     if(!ShinySender$empty()) {
       msg <- parseMessage(ShinySender$pop()$message, appParams)
-      if(is.null(msg)) {
+      if(is.null(msg))
         ShinyReceiver$push("ERR", "OPI server: OPI statement badly constructed")
-        cmd <- "opiIddle"
-      } else {
+      else {
         cmd <- msg$cmd
         pars <- msg$pars
       }
     }
-    else if(cmd == "opiIddle") Sys.sleep(0.1)
-    else Sys.sleep(0.01) # let the system breath
     ################
     # OPI Initialize
     ################
@@ -33,7 +31,6 @@ server <- future({
         ShinyReceiver$push("OK", paste0("OPI initialized for '", chooseOPI()[.OpiEnv$chooser], "'"))
       else
         ShinyReceiver$push("ERR", paste("OPI server:", msg))
-      cmd <- "opiIddle"
     }
     ####################
     # OPI Set Background
@@ -44,7 +41,6 @@ server <- future({
         ShinyReceiver$push("OK", "OPI background changed")
       else
         ShinyReceiver$push("ERR", paste("OPI server:", msg))
-      cmd <- "opiIddle"
     }
     ###############
     # OPI Test Init
@@ -68,7 +64,6 @@ server <- future({
         ShinyReceiver$push("OK", "OPI test settings ready")
       } else
         ShinyReceiver$push("ERR", paste("OPI server:", msg))
-      cmd <- "opiIddle"
     }
     ###################
     # OPI Test Step Run
@@ -76,8 +71,11 @@ server <- future({
     if(cmd == "opiTestStepRun") {
       # go ahead with the step run
       msg <- tryCatch({
+        # return selected location with values to test
+        stepLoc <- selectStepLoc(states, settings)
+        returnSelection(stepLoc)
         # perform step
-        rs <- testStep(states, settings)
+        rs <- testStep(stepLoc$loc, states, settings)
         # update states and settings
         states <- rs$states
         settings <- rs$settings
@@ -89,15 +87,17 @@ server <- future({
       }
       else
         ShinyReceiver$push("ERR", paste("OPI server:", msg))
-      cmd <- "opiIddle"
     }
     ######################
     # OPI TEST Catch Trial
     ######################
     if(cmd == "opiTestCatchTrial") {
       msg <- tryCatch({
+        # return selected location with values for catch trial
         stim <- settings$makeStimHelper(pars$x, pars$y, pars$w)(pars$db, 0)
-        print(stim)
+        stepLoc <- getCatchTrialInfo(stim, settings$perimetry)
+        returnSelection(stepLoc)
+        # present catch trial
         res <- testCatchTrial(stim)
         NULL
       }, error = function(e) e$message)
@@ -107,7 +107,6 @@ server <- future({
       }
       else
         ShinyReceiver$push("ERR", paste("OPI server:", msg))
-      cmd <- "opiIddle"
     }
     ##############
     # OPI Test End
@@ -120,7 +119,6 @@ server <- future({
         ShinyReceiver$push("OK", "OPI test ended successfully")
       else
         ShinyReceiver$push("ERR", paste("OPI server:", msg))
-      cmd <- "opiIddle"
     }
     ###########
     # OPI Close
@@ -139,7 +137,10 @@ globals = list(appParams = appParams,
                ShinyReceiver = ShinyReceiver,
                parseMessage = parseMessage,
                testSetup = testSetup,
+               selectStepLoc = selectStepLoc,
                testStep = testStep,
                testCatchTrial = testCatchTrial,
+               getCatchTrialInfo = getCatchTrialInfo,
+               returnSelection = returnSelection,
                returnResults = returnResults),
 packages = c("OPI", "deldir"))

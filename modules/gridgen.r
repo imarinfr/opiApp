@@ -33,20 +33,24 @@ gridgen <- function(input, output, session) {
   ns <- session$ns
   gridTableProxy <- dataTableProxy("griddb")
   ptsTableProxy  <- dataTableProxy("gridpts")
-  refreshout <- reactiveVal(FALSE) # refresh output graphs?
   griddbChanged <- reactiveVal(FALSE)
-  selGridRow <- NULL
+  locsChanged <- reactiveVal(FALSE)
+  locs <- reactiveVal(NULL)
+  ptsTable <- reactiveVal(NULL)
   gsel <- reactive(!is.null(input$griddb_rows_selected))
-  locsChanged <- FALSE
-  locs <- initLocs()
-  ptsTable <- fillPtsTable(locs)
+  selGridRow <- NULL
   gridTable <- datatable(buildGridTable(grids), selection = "single", rownames = FALSE,
                          options = list(pageLength = 5, lengthChange = FALSE)) %>%
     formatStyle(columns = 0, target = "row", lineHeight = "75%")
+  #########
+  # Outputs
+  #########
   output$griddb <- renderDataTable(gridTable)
-  ####################
-  # OBSERVE
-  ####################
+  output$gridpts <- renderRHandsontable(ptsTable())
+  output$plotgrid <- renderPlot(showGrid(locs()))
+  ########
+  # Events
+  ########
   # if selected patient db has changed
   observe({
     if(griddbChanged()) {
@@ -55,16 +59,16 @@ gridgen <- function(input, output, session) {
       selectPage(gridTableProxy, ceiling(selGridRow / 5))
       selectRows(gridTableProxy, selGridRow)
     }
-  })
-  observeEvent(gsel(), {
-    if(locsChanged) {
+  }) %>% bindEvent(griddbChanged(), ignoreInit = TRUE)
+  observe({
+    if(locsChanged()) {
       selectRows(gridTableProxy, selGridRow) 
     } else {
       if(gsel()) {
         updateTextInput(session, "code", value = names(grids)[input$griddb_rows_selected])
         updateTextInput(session, "name", value = grids[[input$griddb_rows_selected]]$name)
-        locs <<- grids[[input$griddb_rows_selected]]$locs
-        ptsTable <<- fillPtsTable(locs)
+        locs(grids[[input$griddb_rows_selected]]$locs)
+        ptsTable(fillPtsTable(locs()))
         selGridRow <<- input$griddb_rows_selected
         enable("name")
         enable("delete")
@@ -72,44 +76,45 @@ gridgen <- function(input, output, session) {
       else {
         updateTextInput(session, "code", value = "", placeholder = "code")
         updateTextInput(session, "name", value = "", placeholder = "name")
-        locs <<- initLocs()
-        ptsTable <<- fillPtsTable(locs, readOnly = TRUE)
+        locs(initLocs())
+        ptsTable(fillPtsTable(locs(), readOnly = TRUE))
         selGridRow <<- input$griddb_rows_selected
         disable("name")
         disable("delete")
       }
-      refreshout(TRUE)
     }
-  }, ignoreInit = TRUE)
-  observeEvent(input$name, {
+  }) %>% bindEvent(gsel(), ignoreInit = TRUE)
+  observe({
     if(!is.null(selGridRow) && grids[[selGridRow]]$name != input$name) {
-      locsChanged <<- TRUE
+      locsChanged(TRUE)
       enable("save")
       enable("cancel")
       disable("create")
     }
-  })
-  observeEvent(input$gridpts$changes, {
+  }) %>% bindEvent(input$name)
+  observe({
     if(input$gridpts$changes$event == "afterCreateRow") {
       r <- input$gridpts$changes$ind + 1
-      if(r <= nrow(locs))
-        locs[seq(r + 1, nrow(locs) + 1),] <<- locs[seq(r,nrow(locs)),]
-      locs[r,] <<- c(as.numeric(NA), as.numeric(NA), 0)
-      rownames(locs) <<- c(1:nrow(locs))
-      ptsTable <<- fillPtsTable(locs)
-      locsChanged <<- TRUE
-      refreshout(TRUE)
+      ll <- locs()
+      if(r <= nrow(ll))
+        locs[seq(r + 1, nrow(ll) + 1),] <- ll[seq(r,nrow(ll)),]
+      ll[r,] <- c(as.numeric(NA), as.numeric(NA), 0)
+      rownames(ll) <- c(1:nrow(ll))
+      locs(ll)
+      ptsTable(fillPtsTable(locs()))
+      locsChanged(TRUE)
       enable("save")
       enable("cancel")
       disable("create")
     }
     if(input$gridpts$changes$event == "afterRemoveRow") {
       r <- (input$gridpts$changes$ind + 1):(input$gridpts$changes$ind + input$gridpts$changes$ct)
-      locs <<- locs[-r,]
-      rownames(locs) <<- c(1:nrow(locs))
-      ptsTable <<- fillPtsTable(locs)
-      locsChanged <<- TRUE
-      refreshout(TRUE)
+      ll <- locs()
+      ll <- ll[-r,]
+      rownames(ll) <- c(1:nrow(ll))
+      locs(ll)
+      ptsTable(fillPtsTable(locs()))
+      locsChanged(TRUE)
       enable("save")
       enable("cancel")
       disable("create")
@@ -121,74 +126,18 @@ gridgen <- function(input, output, session) {
       v <- input$gridpts$changes$changes[[1]][[4]]
       if((c < 3 & is.numeric(v)) | is.integer(v)) {
         v <- input$gridpts$changes$changes[[1]][[4]]
-        locs[r, c] <<- v
+        ll <- locs()
+        ll[r, c] <- v
+        locs(ll)
       }
-      ptsTable <<- fillPtsTable(locs)
-      locsChanged <<- TRUE
-      refreshout(TRUE)
+      ptsTable(fillPtsTable(locs()))
+      locsChanged(TRUE)
       enable("save")
       enable("cancel")
       disable("create")
     }
-  }, ignoreInit = TRUE)
-  observe(
-    if(refreshout()) {
-      output$gridpts <- renderRHandsontable(ptsTable)
-      output$plotgrid <- renderPlot(showGrid(locs))
-      refreshout(FALSE)
-    }
-  )
-  observeEvent(input$cancel, {
-    showModal(modalDialog(
-      title = "Discard changes?",
-      "Are you sure you want to discard the changes?",
-      footer = tagList(actionButton(ns("cancelok"), "Yes"), modalButton("No"))
-    ))
-  })
-  observeEvent(input$cancelok, {
-    updateTextInput(session, "code", value = names(grids)[input$griddb_rows_selected])
-    updateTextInput(session, "name", value = grids[[input$griddb_rows_selected]]$name)
-    locs <<- grids[[input$griddb_rows_selected]]$locs
-    ptsTable <<- fillPtsTable(locs)
-    locsChanged <<- FALSE
-    refreshout(TRUE)
-    disable("save")
-    disable("cancel")
-    enable("create")
-    removeModal()
-  })
-  observeEvent(input$save, {
-    showModal(modalDialog(
-      title = "Save grid?",
-      "Are you sure you want to overwrite the grid?",
-      footer = tagList(actionButton(ns("saveok"), "Yes"), modalButton("No"))
-    ))
-  })
-  observeEvent(input$saveok, {
-    removeModal()
-    # remove empty rows if any
-    idx <- which(apply(locs, 1, function(row) all(is.na(row[1]) & is.na(row[2]))))
-    if(length(idx) > 0) locs <<- locs[-idx,]
-    if(any(is.na(locs)))
-      errorMessage("Please fill uncomplete rows before saving")
-    else {
-      grids[[selGridRow]]$name <<- input$name
-      # sort
-      locs <<- locs[order(locs$x),]
-      locs <<- locs[order(locs$y, decreasing = TRUE),]
-      rownames(locs) <<- c(1:nrow(locs))
-      grids[[selGridRow]]$locs <<- locs
-      save(grids, file = "../config/grids.rda")
-      locsChanged <<- FALSE
-      griddbChanged(TRUE)
-      disable("save")
-      disable("cancel")
-      enable("create")
-    }
-    ptsTable <<- fillPtsTable(locs)
-    refreshout(TRUE)
-  })
-  observeEvent(input$create, {
+  }) %>% bindEvent(input$gridpts$changes, ignoreInit = TRUE)
+  observe({
     showModal(modalDialog(
       fluidRow(
         column(2, textInput(ns("newcode"), label = "Grid code", placeholder = "code")),
@@ -198,8 +147,8 @@ gridgen <- function(input, output, session) {
       title = "Create new grid",
       footer = tagList(actionButton(ns("createok"), "Create"), modalButton("Cancel"))
     ))
-  })
-  observeEvent(input$createok, {
+  }) %>% bindEvent(input$create)
+  observe({
     removeModal()
     if(input$newcode == "" | input$newname == "")
       errorMessage("Please fill the new grid's code and name")
@@ -214,22 +163,72 @@ gridgen <- function(input, output, session) {
                                                        w = integer(input$numrows)))
       names(grids)[length(grids)] <<- input$newcode
       selGridRow <<- length(grids)
-      save(grids, file = "../config/grids.rda")
+      save(grids, file = "config/grids.rda")
       griddbChanged(TRUE)
     }
-  })
-  observeEvent(input$delete, {
+  }) %>% bindEvent(input$createok)
+  observe({
     showModal(modalDialog(
       title = "Delete grid?",
       "Are you sure you want to delete the current?",
       footer = tagList(actionButton(ns("deleteok"), "Yes"), modalButton("No"))
     ))
-  })
-  observeEvent(input$deleteok, {
+  }) %>% bindEvent(input$delete)
+  observe({
     removeModal()
     grids[length(grids)] <<- NULL
-    save(grids, file = "../config/grids.rda")
+    save(grids, file = "config/grids.rda")
     selGridRow <<- length(grids)
     griddbChanged(TRUE)
-  })
+  }) %>% bindEvent(input$deleteok)
+  observe({
+    showModal(modalDialog(
+      title = "Save grid?",
+      "Are you sure you want to overwrite the grid?",
+      footer = tagList(actionButton(ns("saveok"), "Yes"), modalButton("No"))
+    ))
+  }) %>% bindEvent(input$save)
+  observe({
+    removeModal()
+    ll <- locs()
+    # remove empty rows if any
+    idx <- which(apply(ll, 1, function(row) all(is.na(row[1]) & is.na(row[2]))))
+    if(length(idx) > 0) ll <- ll[-idx,]
+    if(any(is.na(ll)))
+      errorMessage("Please fill uncomplete rows before saving")
+    else {
+      grids[[selGridRow]]$name <<- input$name
+      # sort
+      ll <- ll[order(ll$x),]
+      ll <- ll[order(ll$y, decreasing = TRUE),]
+      rownames(ll) <- c(1:nrow(ll))
+      locs(ll)
+      grids[[selGridRow]]$locs <<- locs()
+      save(grids, file = "config/grids.rda")
+      locsChanged(FALSE)
+      griddbChanged(TRUE)
+      disable("save")
+      disable("cancel")
+      enable("create")
+    }
+    ptsTable(fillPtsTable(locs()))
+  }) %>% bindEvent(input$saveok)
+  observe({
+    showModal(modalDialog(
+      title = "Discard changes?",
+      "Are you sure you want to discard the changes?",
+      footer = tagList(actionButton(ns("cancelok"), "Yes"), modalButton("No"))
+    ))
+  }) %>% bindEvent(input$cancel)
+  observe({
+    updateTextInput(session, "code", value = names(grids)[input$griddb_rows_selected])
+    updateTextInput(session, "name", value = grids[[input$griddb_rows_selected]]$name)
+    locs(grids[[input$griddb_rows_selected]]$locs)
+    ptsTable(fillPtsTable(locs()))
+    locsChanged(FALSE)
+    disable("save")
+    disable("cancel")
+    enable("create")
+    removeModal()
+  }) %>% bindEvent(input$cancelok)
 }

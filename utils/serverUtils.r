@@ -53,8 +53,13 @@ parseMessage <- function(msg, appParams) {
   return(list(cmd = cmd, pars = pars))
 }
 # send results to client
+returnSelection <- function(stepLoc)
+  ShinyReceiver$push(title = "LOCATION",
+                     message = paste(stepLoc$loc, stepLoc$x, stepLoc$y,
+                                     stepLoc$lum, stepLoc$size, stepLoc$col))
+# send results to client
 returnResults <- function(res)
-  ShinyReceiver$push(title = "VAL",
+  ShinyReceiver$push(title = "RESULT",
                      message = paste(res$loc, res$x, res$y, res$level, res$seen,
                                      res$time, res$respWin, res$done, res$th))
 # fill out parameters to initialize the OPI
@@ -144,6 +149,8 @@ testSetup <- function(machine, appParams, eye, perimetry, algorithm, val, algval
   }
   if(!is.null(settings)) {
     settings$machine <- appParams$machine
+    settings$perimetry <- perimetry
+    settings$algorithm <- algorithm
     settings$x <- locs$x
     settings$y <- locs$y
     settings$w <- locs$w
@@ -160,16 +167,47 @@ testSetup <- function(machine, appParams, eye, perimetry, algorithm, val, algval
   }
   return(list(states = states, settings = settings))
 }
-
-# process test step
-testStep <- function(states, settings) {
+# select step location
+selectStepLoc <- function(states, settings) {
   # choose next location to test by growth pattern wave
   if(length(settings$unfinished) == 1)
     loc <- settings$unfinished
   else
     loc <- sample(settings$unfinished, 1, prob = 1 / (settings$w[settings$unfinished]^2))
+  loc <- loc
+  stim <- getNextStim(settings, states, loc)
+  x <- stim$x
+  y <- stim$y
+  if(settings$perimetry == "PhoneVR") {
+    size <-stim$sx
+    lum <- stim$lum
+    col <- stim$col
+  } else {
+    size <-stim$size
+    lum <- stim$level
+    col <- "#FFFFFF"
+  }
+  return(list(loc = loc, x = x, y = y, lum = lum, size = size, col = col))
+}
+# select step loc for 
+getCatchTrialInfo <- function(stim, perimetry) {
+  x <- stim$x
+  y <- stim$y
+  if(perimetry == "PhoneVR") {
+    size <-stim$sx
+    lum <- stim$lum
+    col <- stim$col
+  } else {
+    size <-stim$size
+    lum <- stim$level
+    col <- "#FFFFFF"
+  }
+  return(list(loc = -1, x = x, y = y, lum = lum, size = size, col = col))
+}
+# process test step
+testStep <- function(loc, states, settings) {
   # update the makeStim with the most current response time
-  states[[loc]]$makeStim <- settings$makeStimHelper(settings$x[loc], settings$x[loc], settings$respWin)
+  states[[loc]]$makeStim <- settings$makeStimHelper(settings$x[loc], settings$y[loc], settings$respWin)
   # present stimulus and obtain response
   sr <- settings$stepf(states[[loc]])
   if(substr(settings$machine, 1, 3) == "Sim" & sr$resp$seen)
@@ -215,9 +253,9 @@ testStep <- function(states, settings) {
 }
 testCatchTrial <- function(stim) {
   res <- opiPresent(stim)
-  return(list(loc = -1, x = stim$x, y = stim$y, level = stim$level,
-              seen = res$seen, time = res$time,
-              respWin = stim$responseTime,
+  return(list(loc = -1, x = stim$x, y = stim$y,
+              level = round(stim$level), seen = res$seen,
+              time = res$time, respWin = stim$responseTime,
               done = FALSE, th = -1))
 }
 # stimulus helper constructor
@@ -238,7 +276,7 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
         body(ff) <- substitute({
           s <- list(x = x, y = y,
                     level = dbTocd(db, pars$maxval), size = pars$val,
-                    duration = pars$presTime, responseTime = w)
+                    duration = pars$presTime, responseWindow = w)
           class(s) <- "opiStaticStimulus"
           return(s)
         }, list(x = x, y = y, w = w))
@@ -253,7 +291,7 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
           s <- list(eye = pars$eye, x = x, y = y,
                     sx = size, sy = size, lum = pars$bglum + lum,
                     col = pars$col,
-                    duration = pars$presTime, responseTime = w)
+                    d = pars$presTime, w = w)
           return(s)
         }, list(x = x, y = y, w = w))
         return(ff)
@@ -266,7 +304,7 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
         body(ff) <- substitute({
           s <- list(x = x, y = y,
                     level = pars$val, size = dbTocd(db, pars$maxval),
-                    duration = pars$presTime, responseTime = w)
+                    duration = pars$presTime, responseWindow = w)
           class(s) <- "opiStaticStimulus"
           return(s)
         }, list(x = x, y = y, w = w))
@@ -281,7 +319,7 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
           s <- list(eye = pars$eye, x = x, y = y,
                     sx = size, sy = size, lum = lum,
                     col = pars$col,
-                    duration = pars$presTime, responseTime = w)
+                    d = pars$presTime, w = w)
           return(s)
         }, list(x = x, y = y, w = w))
         return(ff)
@@ -313,6 +351,7 @@ MOCS.start <- function(domain, nreps, guess, levelRange, dbSep, makeStim, ...) {
               estimate = guess,
               range = range,
               series = series,                      # random series of presentations
+              currentLevel = series[1],
               makeStim = makeStim,
               finished = FALSE,                     # flag to say it is finished
               numPresentations = 0,                 # number of presentations so far
@@ -324,20 +363,18 @@ MOCS.start <- function(domain, nreps, guess, levelRange, dbSep, makeStim, ...) {
 }
 # process step
 MOCS.step <- function(state) {
-  state$numPresentations <- state$numPresentations + 1
-  currentLevel <- state$series[state$numPresentations]
   if (is.null(state$opiParams))
-    params <- list(stim=state$makeStim(currentLevel, state$numPresentations))
+    params <- list(stim = state$makeStim(state$currentLevel, state$numPresentations))
   else
-    params <- c(list(stim=state$makeStim(currentLevel, state$numPresentations)), state$opiParams)
+    params <- c(list(stim = state$makeStim(state$currentLevel, state$numPresentations)), state$opiParams)
   opiResp <- do.call(opiPresent, params)
   while(!is.null(opiResp$err))
     opiResp <- do.call(opiPresent, params)
-  
   state$stimuli <- c(state$stimuli, currentLevel)
   state$responses <- c(state$responses, opiResp$seen)
   state$responseTimes <- c(state$responseTimes, opiResp$time)
-  
+  state$numPresentations <- state$numPresentations + 1
+  state$currentLevel <- state$series[state$numPresentations]
   # check if finished
   if(length(state$stimuli) == length(state$series))
     state$finished <- TRUE
@@ -366,6 +403,29 @@ MOCS.final <- function(state) {
   if(all(prob == 0)) return(mean(state$range))
   est <- approx(prob, state$range, 0.5)$y #TODO placeholder
   return(est)
+}
+getNextStim <- function(settings, states, loc) {
+  state <- states[[loc]]
+  makeStim <- settings$makeStimHelper(settings$x[loc], settings$y[loc], settings$respWin)
+  if(settings$algorithm == "staircase" ||
+     settings$algorithm == "FT" ||
+     settings$algorithm == "MOCS") {
+    stim <- makeStim(state$currentLevel, state$numPresentations)
+  }
+  if(settings$algorithm == "ZEST") {
+    if (state$stimChoice == "mean") {
+      stimIndex <- which.min(abs(state$domain - sum(state$pdf * state$domain)))
+    } else if (state$stimChoice == "mode") {
+      stimIndex <- which.max(state$pdf)
+    } else if (state$stimChoice == "median") {
+      stimIndex <- which.min(abs(cumsum(state$pdf) - 0.5))
+    }
+    stim <- state$domain[stimIndex]
+    stim <- max(stim, state$minStimulus)
+    stim <- min(stim, state$maxStimulus)
+    stim <- makeStim(stim, state$numPresentations)
+  }
+  return(stim)
 }
 # set up probability mass function (PMF)
 makePMF <- function (domain, guess, weight = 4, floor = 0.001) {

@@ -9,18 +9,23 @@ reportUI <- function(id) {
 
 report <- function(input, output, session) {
   ns <- session$ns
-  psel <- reactive(!is.null(input$records_rows_selected))
+  rsel <- reactive(!is.null(input$records_rows_selected))
   reports <- NULL
   record <- reactiveVal(NULL)
   locs <- reactiveVal(NULL)
   res <- reactiveVal(NULL)
   eye <- NULL
   foveadb <- NULL
-  ####################
-  # OBSERVE
-  ####################
+  #########
+  # outputs
+  #########
+  output$plotres <- renderPlot(showPlot(locs(), eye, foveadb))
+  output$textres <- renderUI(HTML(generateReport(record(), res(), nrow(locs()))))
+  ########
+  # Events
+  ########
   # if selected patient db has changed
-  observeEvent(newReports(), {
+  observe({
       newReports(FALSE)
       # get new reports if any exist
       reports <<- getReports(patientTable)
@@ -35,13 +40,10 @@ report <- function(input, output, session) {
                                           options = list(pageLength = 5, lengthChange = FALSE))
       }
     }
-  )
-  ####################
-  # EVENTS
-  ####################
+  ) %>% bindEvent(newReports())
   # selected patient
-  observeEvent(psel(), {
-    if(psel()) {
+  observe({
+    if(rsel()) {
       results <- getResults(reports[input$records_rows_selected,])
       record(results$record)
       res(results$res)
@@ -57,17 +59,15 @@ report <- function(input, output, session) {
       locs(NULL)
       disable("genpdf")
     }
-  }, ignoreInit = TRUE)
+  }) %>% bindEvent(rsel(), ignoreInit = TRUE)
   # selected patient
-  observeEvent(input$genpdf, {
+  observe({
     tdate <- format(as.Date(record()$date), "%Y%m%d")
     ttime <- gsub(":", "", record()$time)
-    fname <- paste0("../results/pdfs/", paste(record()$id, tdate, ttime, sep = "_"), ".pdf")
+    fname <- paste0("results/pdfs/", paste(record()$id, tdate, ttime, sep = "_"), ".pdf")
     savePDF(fname, record(), locs(), res(), eye, foveadb)
     txt <- "The report has been generated as a PDF file and saved in"
     txt <- paste(txt, substr(fname, 4, nchar(fname)))
     showModal(modalDialog(title = "Report generated", txt, easyClose = TRUE))
-  })
-  output$plotres <- renderPlot(showPlot(locs(), eye, foveadb))
-  output$textres <- renderUI(HTML(generateReport(record(), res(), nrow(locs()))))
+  }) %>% bindEvent(input$genpdf)
 }

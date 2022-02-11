@@ -43,11 +43,11 @@ patients <- function(input, output, session) {
   ns <- session$ns
   psel <- reactive(!is.null(input$patientdb_rows_selected))
   newPatient <- FALSE
-  ####################
-  # OBSERVE
-  ####################
+  ########
+  # Events
+  ########
   # if selected patient db has changed
-  observe(
+  observe({
     if(patientdbChanged()) {
       patientdbChanged(FALSE)
       patientOut        <- patientTable[,1:6]
@@ -57,12 +57,10 @@ patients <- function(input, output, session) {
                               options = list(pageLength = 10, lengthChange = FALSE))
       patientOut <- formatStyle(patientOut, columns = 0, target = "row", lineHeight = "75%")
       output$patientdb  <- renderDataTable(patientOut)
-    })
-  ####################
-  # EVENTS
-  ####################
+    }
+  }) %>% bindEvent(patientdbChanged(), ignoreInit = TRUE)
   # selected patient
-  observeEvent(psel(), {
+  observe({
     newPatient <<- FALSE
     enable("newPatient")
     if(psel()) { # check if a patient has been selected or deselected
@@ -76,32 +74,32 @@ patients <- function(input, output, session) {
       hidePatientFields()
       patient(initPatient())
     }
-  }, ignoreInit = TRUE)
+  }) %>% bindEvent(psel(), ignoreInit = TRUE)
   # create new patient
-  observeEvent(input$newPatient, { # add new patient
+  observe({ # add new patient
     newPatient <<- TRUE
     disable("newPatient")
     disable("delPatient")
     clearPatientFields(session)
     showPatientFields()
     enableMandatoryFields()
-  })
+  }) %>% bindEvent(input$newPatient)
   # delete existing patient
-  observeEvent(input$delPatient, { # delete existing patient: need to confirm
+  observe({ # delete existing patient: need to confirm
     showModal(modalDialog(
       title = "Delete patient?",
       "Are you sure you want to delete the selected patient?",
       footer = tagList(actionButton(ns("delok"), "Yes"), modalButton("No"))
     ))
-  }, ignoreInit = TRUE)
+  }) %>% bindEvent(input$delPatient, ignoreInit = TRUE)
   # confirm delete
-  observeEvent(input$delok, {
+  observe({
     patientTable <<- deletePatient(input$patientdb_rows_selected, patientTable)
     patientdbChanged(TRUE)
     removeModal()
-  }, ignoreInit = TRUE)
+  }) %>% bindEvent(input$delok, ignoreInit = TRUE)
   # save patient
-  observeEvent(input$save, { # save new patient
+  observe({ # save new patient
     if(newPatient) { # check if mandatory fields are not empty
       checkRes <- checkNewPatient(input, patientTable)
       if(checkRes$saveok) {
@@ -116,11 +114,11 @@ patients <- function(input, output, session) {
       patientTable <<- saveModifiedPatient(input, patientTable)
       patientdbChanged(TRUE)
     }
-  }, ignoreInit = TRUE)
+  }) %>% bindEvent(input$save, ignoreInit = TRUE)
   # cancel and do not create or edit
-  observeEvent(input$cancel, { # cancel save and do not save
+  observe({ # cancel save and do not save
     enable("newPatient")
     disableMandatoryFields()
     hidePatientFields()
-  }, ignoreInit = TRUE)
+  }) %>% bindEvent(input$cancel, ignoreInit = TRUE)
 }

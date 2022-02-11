@@ -58,34 +58,36 @@ settingsUI <- function(id) {
 }
 
 settings <- function(input, output, session) {
+  #########
+  # Outputs
+  #########
   output$device <- renderText("<h5><b>OPI configuration</b></h>")
   output$pars <- renderText("<h5><b>Stimulus and background parameters</b></h>")
   output$general <- renderText("<h5><b>General test parameters</b></h>")
   output$specific <- renderText("<h5><b>Specific test parameters</b></h>")
-  ####################
-  # EVENTS
-  ####################
+  ########
+  # Events
+  ########
   # if any input has changed, then update appParams
   lapply(names(appParams), function(par) {
-    observeEvent(input[[par]], {
+    observe({
       appParams[[par]] <<- input[[par]]
       settingsChanged(FALSE)
       settingsChanged(TRUE)
-    }, ignoreInit = TRUE)
+    }) %>% bindEvent(input[[par]], ignoreInit = TRUE)
   })
   # special treatment fields
-  observeEvent(input$gammaf, {
+  observe({
     appParams$lut <<- gammaf[[appParams$gammaf]]$lut
-  })
-  observeEvent(input$O900wheel, {
+  }) %>% bindEvent(input$gammaf)
+  observe({
     appParams$O900wheel <<- as.logical(input$O900wheel)
-  })
-  observeEvent(input$O900max, {
+  }) %>% bindEvent(input$O900wheel)
+  observe({
     appParams$O900max <<- as.logical(input$O900max)
-  })
-  
+  }) %>% bindEvent(input$O900max)
   # check if input OK or not
-  observeEvent(settingsChanged(), {
+  observe({
     disableAllConfigFields()
     if(appParams$machine == "PhoneVR") {
       enableConfigFields(c("device", "ip", "port", "gammaf",
@@ -93,16 +95,16 @@ settings <- function(input, output, session) {
     } else if(appParams$machine == "Octopus900") {
       enableConfigFields(c("device", "port", "O900path", "O900max", "O900wheel"))
     }
-  })
+  }) %>% bindEvent(settingsChanged())
   # save default values
-  observeEvent(input$saveSettings, {
-    save(appParams, file = "../config/appParams.rda")
-  }, ignoreInit = TRUE)
+  observe({
+    save(appParams, file = "config/appParams.rda")
+  }) %>% bindEvent(input$saveSettings, ignoreInit = TRUE)
   # load default values
-  observeEvent(input$loadSettings, {
-    load("../config/appParams.rda", envir = environment(server))
+  observe({
+    load("config/appParams.rda", envir = environment(server))
     populateDefaults(session)
-  }, ignoreInit = TRUE)
+  }) %>% bindEvent(input$loadSettings, ignoreInit = TRUE)
 }
 ####################
 # ROUTINES

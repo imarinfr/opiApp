@@ -31,15 +31,18 @@ gprofile <- function(input, output, session) {
   lutFit <- data.frame(x = 0:255, y = 0)
   # messages for status o connection, etc
   msg <- reactiveVal("Press 'Initialize OPI' to start")
-  # outputs lut, plot and messages
+  #########
+  # Outputs
+  #########
   output$lut <- NULL
   output$plotlut <- NULL
   output$msgconn <- renderText(msg())
-  ####################
-  # EVENTS
-  ####################
+  output$setup <- renderRHandsontable(setuptable(setupTable))
+  ########
+  # Events
+  ########
   # initialize OPI
-  observeEvent(input$init, {
+  observe({
     if(appParams$machine == "PhoneVR") {
       chooseOPI(appParams$machine)
       pars <- opiGetParams("opiInitialize")
@@ -60,9 +63,9 @@ gprofile <- function(input, output, session) {
         opiInitialized(TRUE)
       } else msg(errortxt("Could not connect to the OPI server"))
     } else msg(errortxt(paste("Gamma function cannot be obtained for", appParams$machine)))
-  }, ignoreInit = TRUE)
+  }) %>% bindEvent(input$init, ignoreInit = TRUE)
   # close OPI connection
-  observeEvent(input$close, {
+  observe({
     opiClose()
     msg("OPI connection closed")
     enable("init")
@@ -74,22 +77,21 @@ gprofile <- function(input, output, session) {
     output$plotlut <- NULL
     output$setup <- renderRHandsontable(setuptable(setupTable))
     opiInitialized(FALSE)
-  }, ignoreInit = TRUE)
-  output$setup <- renderRHandsontable(setuptable(setupTable))
+  }) %>% bindEvent(input$close, ignoreInit = TRUE)
   # select row
-  observeEvent(input$lut_select$select$r, {
+  observe({
     if(opiInitialized() & (appParams$machine == "PhoneVR"))
       do.call(opiSetBackground, list(bgeye = "B", fixeye = "B", bglum = lutTable$pix[input$lut_select$select$r], bgcol = appParams$bgcol))
 
-  }, ignoreInit = TRUE)
-  observeEvent(input$setup$changes$changes, {
+  }) %>% bindEvent(input$lut_select$select$r, ignoreInit = TRUE)
+  observe({
     r <- input$setup$changes$changes[[1]][[1]] + 1
     c <- input$setup$changes$changes[[1]][[2]] + 1
     v <- input$setup$changes$changes[[1]][[4]]
     setupTable[r,c] <<- ifelse(v == "", as.numeric(NA), v)
-  })
+  }) %>% bindEvent(input$setup$changes$changes)
   # observe changes edit
-  observeEvent(input$lut$changes$changes, {
+  observe({
     r <- input$lut$changes$changes[[1]][[1]] + 1
     c <- input$lut$changes$changes[[1]][[2]] + 1
     v <- input$lut$changes$changes[[1]][[4]]
@@ -106,8 +108,8 @@ gprofile <- function(input, output, session) {
       fit[fit < 0] <- 0
       lutFit$y[1:length(fit)] <<- fit
     }
-  })
-  observeEvent(input$save, {
+  }) %>% bindEvent(input$lut$changes$changes)
+  observe({
     if(input$name == "")
       errorMessage("Name for the gamma profile missing")
     else if(any(is.na(lutTable$lum1)))
@@ -123,14 +125,14 @@ gprofile <- function(input, output, session) {
       new <- list(lut = lutFit, measurements = lutTable[,sapply(lutTable, function(col) !all(is.na(col)))])
       gammaf[[length(gammaf) + 1]] <<- new
       names(gammaf)[length(gammaf)] <<- input$name
-      save(gammaf, file = "../config/gammaf.rda")
+      save(gammaf, file = "config/gammaf.rda")
       showModal(modalDialog( title = "Gamma profile", "Gamma profile saved", easyClose = TRUE))
     }
-  }, ignoreInit = TRUE)
-  observeEvent(input$overwrite, {
+  }) %>% bindEvent(input$save, ignoreInit = TRUE)
+  observe({
     removeModal()
     gammaf[[input$name]]$lut <<- lutFit$y
     gammaf[[input$name]]$measurements <<- lutTable[,sapply(lutTable, function(col) !all(is.na(col)))]
-    save(gammaf, file = "../config/gammaf.rda")
-  })
+    save(gammaf, file = "config/gammaf.rda")
+  }) %>% bindEvent(input$overwrite)
 }
