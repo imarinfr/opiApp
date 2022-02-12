@@ -44,24 +44,23 @@ parseMessage <- function(msg, appParams) {
     if(is.na(pars$val) | is.na(pars$algval)) return(NULL)
     pars$grid <- msg[7]
   } else if(cmd == "opiTestCatchTrial") {
-    if(length(msg) != 5) return(NULL)
-    pars$x <- as.numeric(msg[2])
-    pars$y <- as.numeric(msg[3])
-    pars$w <- as.numeric(msg[4])
-    pars$db <- as.numeric(msg[5])
+    if(length(msg) != 6) return(NULL)
+    pars$loc <- as.numeric(msg[2])
+    pars$x <- as.numeric(msg[3])
+    pars$y <- as.numeric(msg[4])
+    pars$w <- as.numeric(msg[5])
+    pars$db <- as.numeric(msg[6])
   }
   return(list(cmd = cmd, pars = pars))
 }
 # send results to client
-returnSelection <- function(stepLoc)
-  ShinyReceiver$push(title = "LOCATION",
-                     message = paste(stepLoc$loc, stepLoc$x, stepLoc$y,
-                                     stepLoc$lum, stepLoc$size, stepLoc$col))
-# send results to client
 returnResults <- function(res)
   ShinyReceiver$push(title = "RESULT",
-                     message = paste(res$loc, res$x, res$y, res$level, res$seen,
-                                     res$time, res$respWin, res$done, res$th))
+                     message = paste(res$loc, res$x, res$y,
+                                     res$level, res$seen,
+                                     res$time, res$respWin,
+                                     res$done, res$th,
+                                     res$lum, res$size, res$col))
 # fill out parameters to initialize the OPI
 opiInitParams <- function(machine, appParams) {
   initParams <- opiGetParams("opiInitialize")
@@ -129,13 +128,13 @@ testSetup <- function(machine, appParams, eye, perimetry, algorithm, val, algval
       states[[i]] <- FT.start(est = algval, instRange = c(0, maxStimulus), makeStim = NULL)
     settings$stepf <- FT.step
     settings$stopf <- FT.stop
-    settings$finalf <- FT.final
+    settings$finalf <- FT.final2
   } else if(algorithm == "staircase") {
     for(i in 1:nrow(locs))
       states[[i]] <- fourTwo.start(est = algval, instRange = c(0, maxStimulus), makeStim = NULL)
     settings$stepf <- fourTwo.step
     settings$stopf <- fourTwo.stop
-    settings$finalf <- fourTwo.final # we use a different one to return any value at all
+    settings$finalf <- fourTwo.final2 # we use a different one to return any value at all
   } else if(algorithm == "MOCS") {
     nreps <- algval
     guess <- round(75 * maxStimulus / 100) # TODO: placeholder. 75th percentile
@@ -148,7 +147,7 @@ testSetup <- function(machine, appParams, eye, perimetry, algorithm, val, algval
     settings$finalf <- MOCS.final
   }
   if(!is.null(settings)) {
-    settings$machine <- appParams$machine
+    settings$machine <- machine
     settings$perimetry <- perimetry
     settings$algorithm <- algorithm
     settings$x <- locs$x
@@ -167,45 +166,13 @@ testSetup <- function(machine, appParams, eye, perimetry, algorithm, val, algval
   }
   return(list(states = states, settings = settings))
 }
-# select step location
-selectStepLoc <- function(states, settings) {
+# process test step
+testStep <- function(loc, states, settings) {
   # choose next location to test by growth pattern wave
   if(length(settings$unfinished) == 1)
     loc <- settings$unfinished
   else
     loc <- sample(settings$unfinished, 1, prob = 1 / (settings$w[settings$unfinished]^2))
-  loc <- loc
-  stim <- getNextStim(settings, states, loc)
-  x <- stim$x
-  y <- stim$y
-  if(settings$perimetry == "PhoneVR") {
-    size <-stim$sx
-    lum <- stim$lum
-    col <- stim$col
-  } else {
-    size <-stim$size
-    lum <- stim$level
-    col <- "#FFFFFF"
-  }
-  return(list(loc = loc, x = x, y = y, lum = lum, size = size, col = col))
-}
-# select step loc for 
-getCatchTrialInfo <- function(stim, perimetry) {
-  x <- stim$x
-  y <- stim$y
-  if(perimetry == "PhoneVR") {
-    size <-stim$sx
-    lum <- stim$lum
-    col <- stim$col
-  } else {
-    size <-stim$size
-    lum <- stim$level
-    col <- "#FFFFFF"
-  }
-  return(list(loc = -1, x = x, y = y, lum = lum, size = size, col = col))
-}
-# process test step
-testStep <- function(loc, states, settings) {
   # update the makeStim with the most current response time
   states[[loc]]$makeStim <- settings$makeStimHelper(settings$x[loc], settings$y[loc], settings$respWin)
   # present stimulus and obtain response
@@ -241,22 +208,41 @@ testStep <- function(loc, states, settings) {
   th <- ifelse(th > settings$maxStimulus, settings$maxStimulus, th)
   th <- ifelse(th < 0, 0, th)
   done <- settings$stopf(states[[loc]])
+  level <- tail(sr$state$stimuli, 1)
+  stimInfo <- getStepStimInfo(settings$machine, states[[loc]]$makeStim(level, 0))
   return(list(states = states, # updated states
               settings = settings, # updated settings
               res = list(loc = loc, x = settings$x[loc], y = settings$y[loc],
-                         level = tail(sr$state$stimuli, 1),
+                         level = level,
                          seen = sr$resp$seen,
                          time = sr$resp$time,
                          respWin = settings$respWin,
                          done = done,
-                         th = round(th))))
+                         th = round(th),
+                         lum = stimInfo$lum, size = stimInfo$size, col = stimInfo$col)))
 }
-testCatchTrial <- function(stim) {
+testCatchTrial <- function(settings, stim, loc) {
   res <- opiPresent(stim)
-  return(list(loc = -1, x = stim$x, y = stim$y,
+  stimInfo <- getStepStimInfo(settings$machine, stim)
+  return(list(loc = loc, x = stim$x, y = stim$y,
               level = round(stim$level), seen = res$seen,
-              time = res$time, respWin = stim$responseTime,
-              done = FALSE, th = -1))
+              time = res$time, respWin = stimInfo$w,
+              done = FALSE, th = -1,
+              lum = stimInfo$lum, size = stimInfo$size, col = stimInfo$col))
+}
+getStepStimInfo <- function(machine, stim) {
+  if(machine == "PhoneVR") {
+    lum <- stim$lum
+    size <- stim$sx
+    w <- stim$w
+    col <- stim$col
+  } else {
+    lum <- stim$level
+    size <- stim$size
+    w <- stim$responseWindow
+    col <- "#FFFFFF"
+  }
+  return(list(lum = lum, size = size, w = w, col = col))
 }
 # stimulus helper constructor
 makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
@@ -266,7 +252,7 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
                  presTime = appParams$presTime)
   } else if(perimetry == "size") {
     pars <- list(eye = eye, val = val, bglum = appParams$bglum, col = appParams$stcol,
-                 minval = appParams$minlum, maxval = appParams$maxlum,
+                 minval = appParams$mindiam, maxval = appParams$maxdiam,
                  presTime = appParams$presTime)
   } else makeStimHelper <- NULL
   if(perimetry == "luminance") {
@@ -288,7 +274,8 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
         body(ff) <- substitute({
           size <- pars$val
           lum <- dbTocd(db, pars$maxval)
-          s <- list(eye = pars$eye, x = x, y = y,
+          s <- list(eye = pars$eye,
+                    x = ifelse(pars$eye == "L", -x, x), y = y,
                     sx = size, sy = size, lum = pars$bglum + lum,
                     col = pars$col,
                     d = pars$presTime, w = w)
@@ -316,7 +303,8 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
         body(ff) <- substitute({
           size <- dbTocd(db, pars$maxval)
           lum <- pars$bglum + pars$val
-          s <- list(eye = pars$eye, x = x, y = y,
+          s <- list(eye = pars$eye,
+                    x = ifelse(pars$eye == "L", -x, x), y = y,
                     sx = size, sy = size, lum = lum,
                     col = pars$col,
                     d = pars$presTime, w = w)
@@ -329,7 +317,7 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
   return(list(minVal = pars$minval, maxVal = pars$maxval, makeStimHelper = makeStimHelper))
 }
 # Staircase final function
-fourTwo.final <- function(state) {
+fourTwo.final2 <- function(state) {
   # if done, then send final result. If no reversals yet, then starting estimate
   if(!is.na(state$stairResult)) return(state$stairResult)
   if(length(unique(state$responses)) < 2) return(state$startingEstimate)
@@ -337,9 +325,9 @@ fourTwo.final <- function(state) {
   return(round((tail(state$stimuli[state$responses], 1) + tail(state$stimuli[!state$responses], 1)) / 2))
 }
 # Full Threshold final function. Same as for Staircase
-FT.final <- function(state) {
-  if(is.na(state$lastSeen)) return(state$startingEstimate)
-    return(state$lastSeen)
+FT.final2 <- function(state) {
+  est <- FT.final(state)
+  return(ifelse(is.na(est), state$startingEstimate, est))
 }
 # implementation of MOCS
 MOCS.start <- function(domain, nreps, guess, levelRange, dbSep, makeStim, ...) {
@@ -370,7 +358,7 @@ MOCS.step <- function(state) {
   opiResp <- do.call(opiPresent, params)
   while(!is.null(opiResp$err))
     opiResp <- do.call(opiPresent, params)
-  state$stimuli <- c(state$stimuli, currentLevel)
+  state$stimuli <- c(state$stimuli, state$currentLevel)
   state$responses <- c(state$responses, opiResp$seen)
   state$responseTimes <- c(state$responseTimes, opiResp$time)
   state$numPresentations <- state$numPresentations + 1
@@ -403,29 +391,6 @@ MOCS.final <- function(state) {
   if(all(prob == 0)) return(mean(state$range))
   est <- approx(prob, state$range, 0.5)$y #TODO placeholder
   return(est)
-}
-getNextStim <- function(settings, states, loc) {
-  state <- states[[loc]]
-  makeStim <- settings$makeStimHelper(settings$x[loc], settings$y[loc], settings$respWin)
-  if(settings$algorithm == "staircase" ||
-     settings$algorithm == "FT" ||
-     settings$algorithm == "MOCS") {
-    stim <- makeStim(state$currentLevel, state$numPresentations)
-  }
-  if(settings$algorithm == "ZEST") {
-    if (state$stimChoice == "mean") {
-      stimIndex <- which.min(abs(state$domain - sum(state$pdf * state$domain)))
-    } else if (state$stimChoice == "mode") {
-      stimIndex <- which.max(state$pdf)
-    } else if (state$stimChoice == "median") {
-      stimIndex <- which.min(abs(cumsum(state$pdf) - 0.5))
-    }
-    stim <- state$domain[stimIndex]
-    stim <- max(stim, state$minStimulus)
-    stim <- min(stim, state$maxStimulus)
-    stim <- makeStim(stim, state$numPresentations)
-  }
-  return(stim)
 }
 # set up probability mass function (PMF)
 makePMF <- function (domain, guess, weight = 4, floor = 0.001) {

@@ -60,10 +60,10 @@ client <- function(input, output, session) {
   # results
   msg <- reactiveVal()
   resTrial <- reactiveVal(NULL)
-  locTrial <- reactiveVal(NULL)
   running <- FALSE
   state <- NA
   runType <- NULL
+  trialType <- NULL
   foveadb <- NULL
   res <- NULL
   locs <- NULL
@@ -74,27 +74,23 @@ client <- function(input, output, session) {
   #########
   output$patient <- renderUI(parsePatientOutput(patient()))
   output$msgconn <- renderText(msg())
-  output$plotres <- renderPlot(resPlot(locTrial(), locs, input$eye, foveadb))
+  output$plotres <- renderPlot(resPlot(resTrial(), locs, input$eye, foveadb, appParams$maxlum))
   output$textres <- renderUI(renderResult(resTrial(), res, nrow(locs)))
   ##############
   # main control
   ##############
   # schedule running a trial step or receiving its results
   observe({
-    if(running) {
-      if(state == "run") { # run trial
-        trialType <- checkTrialType()
-        runStep(trialType)
-        print("running")
-        invalidateLater(100)
-        state <<- "read"
-      } else if(state == "read") { # read results
-        getTrialResults(locTrial()$type)
-        print("reading")
-        invalidateLater(50)
-        state <<- "run"
-      }
-    } else invalidateLater(500) # come back later
+    invalidateLater(10)
+    req(running)
+    if(state == "run") { # run trial
+      trialType <<- checkTrialType()
+      runStep(trialType)
+      state <<- "read"
+    } else if(state == "read") { # read results
+      getTrialResults(trialType)
+      state <<- "run"
+    }
   })
   # pause test halfway through
   observe({
@@ -120,11 +116,14 @@ client <- function(input, output, session) {
   }) %>% bindEvent(input$stop, ignoreInit = TRUE)
   # confirm terminate test?
   observe({ # terminate test
-    state <<- "run"
-    removeModal()
+    if(state == "read") { # read results
+      getTrialResults(trialType)
+      state <<- "run"
+    }
     msg(errortxt("Test run stopped"))
     enableRunElements()
     disableElements(c("pause", "stop", "save"))
+    removeModal()
   }) %>% bindEvent(input$stopOK, ignoreInit = TRUE)
   # or continue?
   observe({ # continue test
@@ -176,7 +175,7 @@ client <- function(input, output, session) {
   }) %>% bindEvent(input$eye)
   # if grid changes delete grid results
   observe({
-    initRunVariables("N")
+    initRunVariables("A")
   }) %>% bindEvent(input$grid)
   # initialize OPI
   observe({
@@ -343,11 +342,11 @@ client <- function(input, output, session) {
   # return the type of trial to
   checkTrialType <- function() {
     if(runType == "F") return("F") # fovea trial step
-    if(length(res$type == "N") == 0) return("N") # first step is a normal trial
+    if(sum(res$type == "N") == 0) return("N") # first step is a normal trial
     # check if there are catch trials to run
     lastTrials <- tail(res$type, 2)
-    fp <- !any(lastTrials == "FP") && length(res$type == "N") %% appParams$fprate == 0
-    fn <- !any(lastTrials == "FN") && length(res$type == "N") %% appParams$fnrate == 0
+    fp <- !any(lastTrials == "FP") && sum(res$type == "N") %% appParams$fprate == 0
+    fn <- !any(lastTrials == "FN") && sum(res$type == "N") %% appParams$fnrate == 0
     if(!fp && !fn) return("N") # if not, then normal step
     # FP has priority over FN
     if(fp) return("FP")
@@ -359,39 +358,17 @@ client <- function(input, output, session) {
       ShinySender$push(title = "opiStatement", message = "opiTestStepRun")
     }
     if(type == "FP") {
-      pars <- falsePositivePars(locs, appParams$respWin)
-      statement <- paste("opiTestCatchTrial", pars$x, pars$y, pars$w, pars$db)
+      pars <- falsePositivePars(locs, input$eye, appParams$respWin)
+      statement <- paste("opiTestCatchTrial", pars$loc, pars$x, pars$y, pars$w, pars$db)
       ShinySender$push(title = "opiStatement", message = statement)
     }
     if(type == "FN") {
-      pars <- falseNegativePars(res, appParams$respWin)
+      pars <- falseNegativePars(locs, res, input$eye, appParams$respWin)
       if(!is.null(pars)) {
-        statement <- paste("opiTestCatchTrial", pars$x, pars$y, pars$w, pars$db)
+        statement <- paste("opiTestCatchTrial", pars$loc, pars$x, pars$y, pars$w, pars$db)
         ShinySender$push(title = "opiStatement", message = statement)
       }
     }
-    # get location for this trial
-    locTrial(getStepLoc(type))
-    # check that everything went well
-    while(ShinyReceiver$empty()) Sys.sleep(0.1)
-    msgtxt <- ShinyReceiver$pop()
-    if(msgtxt$title != "OK") msg(errortxt(msgtxt$message))
-  }
-  # get next location
-  getStepLoc <- function(type) {
-    stepLoc <- NULL
-    while(ShinyReceiver$empty()) Sys.sleep(0.1)
-    received <- strsplit(ShinyReceiver$pop()$message, split = " ")[[1]]
-    if(length(received) == 6) {
-      stepLoc$loc <- as.numeric(received[1])
-      stepLoc$x <- as.numeric(received[2])
-      stepLoc$y <- as.numeric(received[3])
-      stepLoc$lum <- as.numeric(received[4])
-      stepLoc$size <- as.numeric(received[5])
-      stepLoc$col <- received[6]
-      stepLoc$type <- type
-    }
-    return(stepLoc)
   }
   # read results
   readResults <- function(type) {
@@ -399,41 +376,48 @@ client <- function(input, output, session) {
     # update times
     tt <<- tt + as.numeric(difftime(Sys.time(), tt0, units = "secs"))
     tt0 <<- Sys.time()
+    # check if all good
     while(ShinyReceiver$empty()) Sys.sleep(0.1)
-    received <- strsplit(ShinyReceiver$pop()$message, split = " ")[[1]]
-    if(length(received) == 9) {
-      resReceived <- parseResults(received, type)
-    } else msg(errortxt("Wrong number of parameters"))
-    if(!is.null(resReceived)) {
-      res <<- rbind(res, resReceived)
-      if(type == "F") # update results
-        foveadb <<- resReceived$th
-      else if(type == "N")
-        updateLocations(resReceived)
-    }
+    msgtxt <- ShinyReceiver$pop()
+    if(msgtxt$title == "OK") {
+      while(ShinyReceiver$empty()) Sys.sleep(0.1)
+      received <- strsplit(ShinyReceiver$pop()$message, split = " ")[[1]]
+      if(length(received) == 12)
+        resReceived <- parseResults(received, type)
+      else msg(errortxt("Wrong number of parameters"))
+      if(!is.null(resReceived)) {
+        res <<- rbind(res, resReceived)
+        if(type == "F") # update results
+          foveadb <<- resReceived$th
+        else if(type == "N")
+          updateLocations(resReceived)
+      }
+    } else msg(errortxt(msgtxt$message))
     return(resReceived)
   }
   # get results from the trial and return if done
   getTrialResults <- function(type) {
     done <- FALSE
     resTrial(readResults(type))
-    if(type == "F") done <- resTrial()$done
-    if(type == "N") done <- all(locs$done)
-    if(done) finish()
+    if(!is.null(resTrial())) {
+      if(type == "F") done <- resTrial()$done
+      if(type == "N") done <- all(locs$done)
+      if(done) finish()
+    } else msg(errortxt("could not read the trial results from OPI server"))
   }
   # check if finished
   finish <- function() {
+    resTrial(NULL)
     running <<- FALSE
     state <<- "run"
-    if(runType == "F")  { # fovea
+    enableRunElements()
+    disableElements(c("eye", "algorithm", "algval", "pause", "stop", "close"))
+    if(runType == "F")
       msg("Test finished at fovea")
-      enableRunElements()
-      disableElements(c("eye", "algorithm", "algval", "pause", "stop"))
-    } else {
+    else
       msg("Test finished")
-      disableElements(c("pause", "stop"))
-      enableElements(c("save", "cancel"))
-    }
+    enableElements("cancel")
+    if(sum(res$type == "N") > 0) enableElements("save")
   }
   ##########
   # Routines
@@ -454,7 +438,7 @@ client <- function(input, output, session) {
     }
   }
   initRunVariables <- function(type) {
-    locTrial(NULL)
+    resTrial(NA) # to force refresh
     resTrial(NULL)
     state <<- "run"
     # reset time counters
@@ -485,9 +469,13 @@ client <- function(input, output, session) {
     done <- as.logical(received[8])
     th <- as.numeric(received[9])
     th <- ifelse(th == 0 && done && !seen, -2, th)
+    lum <- as.numeric(received[10])
+    size <- as.numeric(received[11])
+    col <- received[12]
     return(data.frame(loc = loc, x = x, y = y, level = level,
                       type = type, seen = seen, time = time,
                       respWin = respWin, done = done,
+                      lum = lum, size = size, col = col,
                       th = th, tt = tt, tp = tp))
   }
   updateLocations <- function(resReceived) {

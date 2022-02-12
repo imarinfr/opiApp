@@ -71,9 +71,6 @@ server <- future({
     if(cmd == "opiTestStepRun") {
       # go ahead with the step run
       msg <- tryCatch({
-        # return selected location with values to test
-        stepLoc <- selectStepLoc(states, settings)
-        returnSelection(stepLoc)
         # perform step
         rs <- testStep(stepLoc$loc, states, settings)
         # update states and settings
@@ -95,10 +92,8 @@ server <- future({
       msg <- tryCatch({
         # return selected location with values for catch trial
         stim <- settings$makeStimHelper(pars$x, pars$y, pars$w)(pars$db, 0)
-        stepLoc <- getCatchTrialInfo(stim, settings$perimetry)
-        returnSelection(stepLoc)
         # present catch trial
-        res <- testCatchTrial(stim)
+        res <- testCatchTrial(settings, stim, pars$loc)
         NULL
       }, error = function(e) e$message)
       if(is.null(msg)) { # if all good, inform, then send results
@@ -137,10 +132,7 @@ globals = list(appParams = appParams,
                ShinyReceiver = ShinyReceiver,
                parseMessage = parseMessage,
                testSetup = testSetup,
-               selectStepLoc = selectStepLoc,
                testStep = testStep,
                testCatchTrial = testCatchTrial,
-               getCatchTrialInfo = getCatchTrialInfo,
-               returnSelection = returnSelection,
                returnResults = returnResults),
 packages = c("OPI", "deldir"))

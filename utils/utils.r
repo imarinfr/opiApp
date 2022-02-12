@@ -14,6 +14,7 @@ errorMessage <- function(txt) {
 templatePlot <- function(locs, eye, expf = 1.05, lty = 1, lwd = 1,
                          bg = "white", linCol = "lightgray",
                          ellipseColor = "gray92") {
+  rad <- 1.5
   par(mar = c(0, 0, 0, 0), bg = bg)
   if(eye == "L") x <- -15
   else x <- 15
@@ -33,12 +34,15 @@ templatePlot <- function(locs, eye, expf = 1.05, lty = 1, lwd = 1,
   plot(0, 0, typ = "n", xlim = expf * xlim, ylim = expf * ylim, asp = 1,
        axes = FALSE, ann = FALSE, bty = "n")
   draw.ellipse(x, -1.5, 2.75, 3.75, col = ellipseColor, border = ellipseColor)
-  lines(xlim, c(0, 0), col = linCol, lty = lty, lwd = lwd)
-  lines(c(0, 0), ylim, col = linCol, lty = lty, lwd = lwd)
+  lines(c(xlim[1], -rad), c(0, 0), col = linCol, lty = lty, lwd = lwd)
+  lines(c(rad, xlim[2]), c(0, 0), col = linCol, lty = lty, lwd = lwd)
+  lines(c(0, 0), c(ylim[1], -rad), col = linCol, lty = lty, lwd = lwd)
+  lines(c(0, 0), c(rad, ylim[2]), col = linCol, lty = lty, lwd = lwd)
   text(expf * xlim[1], 0, xlim[1], adj = c(1, 0.5), col = linCol)
   text(expf * xlim[2], 0, xlim[2], adj = c(0, 0.5), col = linCol)
   text(0, expf * ylim[1], ylim[1], adj = c(0.5, 1), col = linCol)
   text(0, expf * ylim[2], ylim[2], adj = c(0.5, 0), col = linCol)
+  draw.circle(0, 0, rad, border = linCol, lwd = lwd)
   l <- 10
   ang <- seq(0, 2 * pi, length.out = 100)
   while(l <= r) {
@@ -65,10 +69,10 @@ secsToMins <- function(secs) {
 #####################
 # disable all buttons
 disableAll <- function()
-  lapply(c("settingsbtn", "gammabtn", "gridgenbtn", "patientsbtn", "clientbtn", "reportbtn"), disable)
+  lapply(c("settingsbtn", "gammabtn", "gridgenbtn", "patientsbtn", "staticbtn", "reportbtn"), disable)
 # enable all buttons
 enableAll <- function()
-  lapply(c("settingsbtn", "gammabtn", "gridgenbtn", "patientsbtn", "clientbtn", "reportbtn"), enable)
+  lapply(c("settingsbtn", "gammabtn", "gridgenbtn", "patientsbtn", "staticbtn", "reportbtn"), enable)
 #######################
 # Routines for gprofile
 #######################
@@ -274,30 +278,48 @@ getPatientAge <- function(dob, date) {
 #####################
 # Routines for client
 #####################
-resPlot <- function(loc, locs, eye, foveadb) {
+resPlot <- function(res, locs, eye, foveadb, maxlum) {
   if(is.null(locs)) return(NULL)
-  templatePlot(locs, eye, bg = "gray35",
-               linCol = "gray50",
-               ellipseColor = "gray10")
-  alpha <- "AA"
+  alpha <- "CC"
+  bglum <- 0.25
+  templatePlot(locs, eye, bg = paste0("gray", round(100 * bglum)),
+               linCol = "gray50", ellipseColor = "gray10")
   # unfinished symbols are presented in gray, finished symbols in black
   cols <- brewer.pal(8, "Dark2")[1:max(locs$w, na.rm = TRUE)]
   cols[1] <- "#FFFFFF"
-  fovcol <- "#FFFFFF"
+  cols <- paste0(cols, alpha)
+  fovcol <- paste0("#FFFFFF", alpha)
+  ptcex <- 0.5
+  if(!is.null(res)) {
+    # show current result
+    if(res$type == "F") {
+      col <- fovcol
+      foveadb <- NA
+      cex <- 0
+    } else {
+      if(eye == "L") res$x <- -res$x
+      col <- cols[locs$w[res$loc]]
+      locs <- locs[-res$loc,]
+      cex <- ptcex
+    }
+    ccol <- res$lum / maxlum * (1 - 1.5 * bglum) + 1.5 * bglum
+    ccol <- paste0(gray(ccol), alpha)
+    draw.circle(res$x, res$y, radius = res$size / 2, col = ccol, border = NA)
+    points(res$x, res$y, pch = 19, cex = cex, col = col)
+  }
   text(0, 0, foveadb, col = fovcol, font = 2)
   isna <- is.na(locs$th)
-  if(any(isna))  points(locs$x[isna], locs$y[isna], pch = 19, col = paste0(cols[locs$w[isna]], alpha))
+  if(any(isna))  points(locs$x[isna], locs$y[isna], pch = 19, cex = ptcex, col = cols[locs$w[isna]])
   if(any(!isna)) text(locs$x[!isna], locs$y[!isna], locs$th[!isna], col = cols[locs$w[!isna]], font = 2)
-  # if presenting at loc, then loc receives a special treatment
-  if(!is.null(loc)) draw.circle(loc$x, loc$y, radius = loc$size,
-                                col = paste0(loc$col, alpha), border = NA)
 }
-falsePositivePars <- function(locs, w) {
+falsePositivePars <- function(locs, eye,  w) {
   # generate an invisible stimulus
-  idx <- sample(1:nrow(locs), 1)
-  return(data.frame(x = locs$x[idx], y = locs$y[idx], w = w, db = 50))
+  loc <- sample(1:nrow(locs), 1)
+  x <- ifelse(eye == "L", -locs$x[loc], locs$x[loc])
+  y <- locs$y[loc]
+  return(data.frame(loc = loc, x = x, y = y, w = w, db = 50))
 }
-falseNegativePars <- function(res, w) {
+falseNegativePars <- function(locs, res, eye, w) {
   # keep only the dimmest stimulus and select one at random
   res <- res[res$seen,c("x", "y", "level")]
   if(nrow(res) == 0) return(NULL)
@@ -305,16 +327,19 @@ falseNegativePars <- function(res, w) {
   for(i in 1:nrow(ur))
     res$db[i] <- min(res$level[which(res$x == ur$x[i] & res$y == ur$y[i])])
   idx <- sample(1:nrow(res), 1)
-  # generate a very visible stimulus
   db <- ifelse(res$db[idx] < 5, 0, res$db[idx] - 5) # TODO criterion. So far, I subtract 5 db
-  return(data.frame(x = res$x[idx], y = res$y[idx], w = w, db = db))
+  loc <- which(locs$x == res$x[idx] & locs$y == res$y[idx])
+  x <- ifelse(eye == "L", -locs$x[loc], locs$x[loc])
+  y <- locs$y[loc]
+  # generate a very visible stimulus
+  return(data.frame(loc = loc, x = x, y = y, w = w, db = db))
 }
 enableElements <- function(ids) lapply(ids, enable)
 disableElements <- function(ids) lapply(ids, disable)
 enableRunElements <- function()
   enableElements(c("close", "fovea", "run", "eye", "grid", "perimetry", "algorithm", "val", "algval"))
 disableRunElements <- function()
-  disableElements(c("close", "fovea", "run", "eye", "grid", "perimetry", "algorithm", "val", "algval"))
+  disableElements(c("close", "fovea", "run", "eye", "grid", "perimetry", "algorithm", "val", "algval", "save", "cancel"))
 # patient's information to show: id, name, surname, age, gender
 parsePatientOutput <- function(patient) {
   if(is.na(patient$id)) {
@@ -329,12 +354,7 @@ parsePatientOutput <- function(patient) {
 # prepare test results to show next to the plot
 renderResult <- function(trialRes, res, npoints) {
   if(is.null(trialRes)) {
-    rtsd <- rtm <- respWintxt <- seentxt <-
-      level <- x <- y <- time <- ""
-    nfinished <- fp <- fpt <- fpp <- fn <-
-      fnt <- fnp <- 0
-    npres <- resBelow150 <- resAbove600 <- 0
-    tttxt <- tptxt <- "00:00"
+    respWintxt <- seentxt <- level <- x <- y <- time <- ""
   } else {
     x <- trialRes$x
     y <- trialRes$y
@@ -352,6 +372,13 @@ renderResult <- function(trialRes, res, npoints) {
       respWintxt <- paste("False positive trial")
     else if(trialRes$type == "FN")
       respWintxt <- paste("False negative trial")
+  }
+  if(sum(res$type == "N") == 0) {
+    rtsd <- rtm <- ""
+    nfinished <- fp <- fpt <- fpp <- fn <- fnt <- fnp <- 0
+    npres <- resBelow150 <- resAbove600 <- 0
+    tttxt <- tptxt <- "00:00"
+  } else {
     npres <- sum(res$type == "N")
     nfinished <- sum(res$done) # locations finished
     # compute false positives and negatives
