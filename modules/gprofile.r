@@ -1,11 +1,11 @@
 gprofileUI <- function(id) {
   ns <- NS(id)
+  opiImpl <- "PhoneVR"
   tagList(
     fluidRow(
-      column(4,
-        textInput(ns("name"), "Gamma function name", placeholder = "name"),
-      ),
-      column(5, br(), offset = 2, rHandsontableOutput(ns("setup")))
+      column(3, selectInput(ns("machine"), "OPI implementation", choices = opiImpl, selected = opiImpl)),
+      column(3, textInput(ns("name"), "Profile name", placeholder = "name")),
+      column(5, br(), offset = 1, rHandsontableOutput(ns("setup")))
     ),
     fluidRow(column(12, htmlOutput(ns("msgconn")))),
     fluidRow(
@@ -43,26 +43,24 @@ gprofile <- function(input, output, session) {
   ########
   # initialize OPI
   observe({
-    if(appParams$machine == "PhoneVR") {
-      chooseOPI(appParams$machine)
-      pars <- opiGetParams("opiInitialize")
-      pars$ip <- appParams$ip
-      pars$port <- appParams$port
-      pars$lut <- 0:255
-      if(is.null(do.call(what = opiInitialize, args = pars)) &&
-         is.null(do.call(opiSetBackground, list(bgeye = "B", fixeye = "B", bglum = 0, bgcol = appParams$bgcol)))) {
-        msg("OPI connection opened")
-        disable("init")
-        enable("close")
-        showElement("save")
-        lutTable <<- generateLUTtable(setupTable)
-        lutFit <<- data.frame(x = 0:255, y = 0)
-        output$setup <- renderRHandsontable(setuptable(setupTable, readOnly = TRUE))
-        output$lut <- renderRHandsontable(luttable(lutTable))
-        output$plotlut <- renderPlot(lutPlot(lutTable, lutFit))
-        opiInitialized(TRUE)
-      } else msg(errortxt("Could not connect to the OPI server"))
-    } else msg(errortxt(paste("Gamma function cannot be obtained for", appParams$machine)))
+    chooseOPI(input$machine)
+    pars <- opiGetParams("opiInitialize")
+    pars$ip <- appParams$ip
+    pars$port <- appParams$port
+    pars$lut <- 0:255
+    if(is.null(do.call(what = opiInitialize, args = pars)) &&
+       is.null(do.call(opiSetBackground, list(bgeye = "B", fixeye = "B", bglum = 0, bgcol = appParams$bgcol)))) {
+      msg("OPI connection opened")
+      disable("init")
+      enable("close")
+      showElement("save")
+      lutTable <<- generateLUTtable(setupTable)
+      lutFit <<- data.frame(x = 0:255, y = 0)
+      output$setup <- renderRHandsontable(setuptable(setupTable, readOnly = TRUE))
+      output$lut <- renderRHandsontable(luttable(lutTable))
+      output$plotlut <- renderPlot(lutPlot(lutTable, lutFit))
+      opiInitialized(TRUE)
+    } else msg(errortxt("Could not connect to the OPI server"))
   }) %>% bindEvent(input$init, ignoreInit = TRUE)
   # close OPI connection
   observe({

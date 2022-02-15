@@ -6,50 +6,43 @@ parseMessage <- function(msg, appParams) {
   # get all messages received
   msg <- strsplit(msg, split = " ")[[1]]
   cmd <- msg[1]
+  pars <- NULL
   if(cmd != "opiInit" &
-     cmd != "opiClose" &
      cmd != "opiSetBackground" &
      cmd != "opiTestInit" &
      cmd != "opiTestStepRun" &
      cmd != "opiTestCatchTrial" &
-     cmd != "opiTestEnd") return(NULL)
-  pars <- NULL
+     cmd != "opiTestEnd" &
+     cmd != "opiClose")
+    return(NULL)
   if(cmd == "opiInit") {
     if(length(msg) < 2) return(NULL)
-    machine <- msg[2]
-    if(!chooseOPI(machine)) return(NULL)
-    pars <- opiInitParams(machine, appParams)
-    if(machine == "Octopus900") {
-      if(length(msg) != 3) return(NULL)
-      pars$eye <- msg[3]
-    } else if(length(msg) != 2) return(NULL)
-  } else if(cmd == "opiClose") {
-    if(length(msg) != 1) return(NULL)
-  } else if(cmd == "opiSetBackground") {
-    if(is.na(.OpiEnv$chooser)) return(NULL)
-    pars <- opiBackgroundParams(chooseOPI()[.OpiEnv$chooser], appParams)
+    if(msg[2] == "Octopus900" & length(msg) != 3) return(NULL)
+    if(length(msg) != 2) return(NULL)
+    if(!chooseOPI(msg[2])) return(NULL)
+    pars <- opiInitParams(msg, appParams)
+  }
+  if(cmd == "opiSetBackground") {
+    if(is.na(chooseOPI()[.OpiEnv$chooser])) return(NULL)
     if(chooseOPI()[.OpiEnv$chooser] == "PhoneVR") {
-      if(length(msg) != 3) return(NULL)
-      pars$bgeye <- msg[2]
-      pars$fixeye <- msg[2]
-      pars$fixtype <- msg[3]
+      if(length(msg) != 4) return(NULL)
     } else if(length(msg) != 1) return(NULL)
-  } else if(cmd == "opiTestInit") {
+    pars <- opiBackgroundParams(chooseOPI()[.OpiEnv$chooser], appParams, msg)
+  }
+  if(cmd == "opiTestInit") {
     if(length(msg) != 7) return(NULL)
-    pars$eye <- msg[2]
-    pars$perimetry <- msg[3]
-    pars$algorithm <- msg[4]
-    pars$val <- as.numeric(msg[5])
-    pars$algval <- as.numeric(msg[6])
+    pars <- opiTestInitParams(msg)
     if(is.na(pars$val) | is.na(pars$algval)) return(NULL)
-    pars$grid <- msg[7]
-  } else if(cmd == "opiTestCatchTrial") {
-    if(length(msg) != 6) return(NULL)
-    pars$loc <- as.numeric(msg[2])
-    pars$x <- as.numeric(msg[3])
-    pars$y <- as.numeric(msg[4])
-    pars$w <- as.numeric(msg[5])
-    pars$db <- as.numeric(msg[6])
+  }
+  if(cmd == "opiTestStepRun") {
+    if(length(msg) != 1) return(NULL)
+  }
+  if(cmd == "opiTestCatchTrial") {
+    if(length(msg) != 5) return(NULL)
+    pars <- opiTestCatchTrialParams(msg)
+  }
+  if(cmd == "opiClose") {
+    if(length(msg) != 1) return(NULL)
   }
   return(list(cmd = cmd, pars = pars))
 }
@@ -61,43 +54,76 @@ returnResults <- function(res)
                                      res$time, res$respWin,
                                      res$done, res$th,
                                      res$lum, res$size, res$col))
-# fill out parameters to initialize the OPI
-opiInitParams <- function(machine, appParams) {
-  initParams <- opiGetParams("opiInitialize")
+opiInitParams <- function(msg, appParams) {
+  pars <- opiGetParams("opiInitialize")
+  if(msg[2] == "PhoneVR") {
+    pars$ip <- appParams$ip
+    pars$port <- appParams$port
+    pars$lut <- appParams$lut
+  }
+  if(msg[2] == "Compass") {
+    pars$ip <- appParams$ip
+    pars$port <- appParams$port
+  }
+  if(msg[2] == "imo") {
+    pars$ip <- appParams$ip
+    pars$port <- appParams$port
+  }
+  if(msg[2] == "Octopus900") {
+    pars$serverPort <- appParams$port
+    pars$eyeSuiteSettingsLocation <- appParams$O900path
+    pars$bigWheel <- appParams$O900wheel
+    pars$zero_dB_is_10000_asb <- appParams$O900max
+    pars$eye <- msg[3]
+  }
+  if(msg[2] == "SimHenson") {
+    pars$type <- "X"
+    pars$A <- 1
+    pars$B <- 3.62
+    pars$cap <- 6
+    pars$maxStim <- appParams$maxlum
+  }
+  return(pars)
+}
+opiBackgroundParams <- function(machine, appParams, msg) {
+  pars <- opiGetParams("opiSetBackground")
   if(machine == "PhoneVR") {
-    initParams$ip <- appParams$ip
-    initParams$port <- appParams$port
-    initParams$lut <- appParams$lut
+    pars$bglum <- appParams$bglum
+    pars$bgcol <- appParams$bgcol
+    pars$fixlum <- appParams$fixlum
+    pars$fixcol <- appParams$fixcol
+    pars$bgeye <- msg[2]
+    pars$fixeye <- msg[3]
+    pars$fixtype <- msg[4]
+  }
+  if(machine == "Compass") {
+    # use defaults with no fixation
+    pars$fixation <- c(0, 0, 0)
+    pars$tracking_on <- FALSE
+  }
+  if(machine == "imo") {
+    # by now use only defaults
   }
   if(machine == "Octopus900") {
-    initParams$serverPort <- appParams$port
-    initParams$eyeSuiteSettingsLocation <- appParams$O900path
-    initParams$bigWheel <- appParams$O900wheel
-    initParams$zero_dB_is_10000_asb <- appParams$O900max
+    pars$lum <- NA
+    pars$color <- NA
+    pars$fixation <- NA
+    pars$fixIntensity <- NA
+    }
+  if(substr(machine, 1, 3) == "Sim") {
+    pars$col <- NA
+    pars$gridCol <- NA
   }
-  if(machine == "SimHenson") {
-    initParams$type <- "X"
-    initParams$A <- 1
-    initParams$B <- 3.62
-    initParams$cap <- 
-    initParams$maxStim <- appParams$maxlum
-  }
-  return(initParams)
+  return(pars)
 }
-# fill out parameters to change the OPI background
-opiBackgroundParams <- function(machine, appParams) {
-  bgParams <- opiGetParams("opiSetBackground")
-  if(machine == "PhoneVR") {
-    bgParams$bglum <- appParams$bglum
-    bgParams$bgcol <- appParams$bgcol
-    bgParams$fixlum <- appParams$fixlum
-    bgParams$fixcol <- appParams$fixcol
-  } else if(substr(machine, 1, 3) == "Sim") {
-    bgParams$col <- NA
-    bgParams$gridCol <- NA
-  }
-  return(bgParams)
-}
+opiTestInitParams <- function(msg)
+  return(list(eye = msg[2], perimetry = msg[3],
+              algorithm = msg[4], val = as.numeric(msg[5]),
+              algval = as.numeric(msg[6]), grid = msg[7]))
+opiTestCatchTrialParams <- function(msg)
+  return(list(loc = as.numeric(msg[2]),
+              x = as.numeric(msg[3]), y = as.numeric(msg[4]),
+              db = as.numeric(msg[5])))
 # prepare test settings
 testSetup <- function(machine, appParams, eye, perimetry, algorithm, val, algval, locs) {
   # get stimulus helper for the specific machine (OPI implementation) and
@@ -160,6 +186,7 @@ testSetup <- function(machine, appParams, eye, perimetry, algorithm, val, algval
     settings$maxStimulus <- maxStimulus
     settings$nn <- findNeighbors(locs)
     settings$respWin <- appParams$respWin
+    settings$winFloor <- appParams$winFloor
     settings$minRespWin <- appParams$minRespWin
     settings$minISI <- appParams$minISI
     settings$movingResp <- rep(appParams$respWin, appParams$slidWidth)
@@ -167,7 +194,7 @@ testSetup <- function(machine, appParams, eye, perimetry, algorithm, val, algval
   return(list(states = states, settings = settings))
 }
 # process test step
-testStep <- function(loc, states, settings) {
+testStep <- function(states, settings) {
   # choose next location to test by growth pattern wave
   if(length(settings$unfinished) == 1)
     loc <- settings$unfinished
@@ -177,8 +204,9 @@ testStep <- function(loc, states, settings) {
   states[[loc]]$makeStim <- settings$makeStimHelper(settings$x[loc], settings$y[loc], settings$respWin)
   # present stimulus and obtain response
   sr <- settings$stepf(states[[loc]])
-  if(substr(settings$machine, 1, 3) == "Sim" & sr$resp$seen)
-    sr$resp$time <- 200
+  if(sr$resp$seen & # simulate random response time
+     substr(settings$machine, 1, 3) == "Sim")
+    sr$resp$time <- round(runif(1, settings$winFloor, settings$respWin))
   states[[loc]] <- sr$state # update state
   # if location finished
   if(settings$stopf(states[[loc]])) {
@@ -191,25 +219,23 @@ testStep <- function(loc, states, settings) {
       settings$unfinished <- sort(c(settings$unfinished, nl$locs))
     }
   }
-  # wait as necessary
-  if(sr$resp$seen) {
-    if(sr$resp$time > 150) {
-      # update moving average window
-      settings$movingResp <- c(sr$resp$time, head(settings$movingResp, length(settings$movingResp) - 1))
-      # update response window and floor if necessary
-      settings$respWin <- round(mean(settings$movingResp)) # update response window
-      if(settings$respWin < settings$minRespWin) settings$respWin <- settings$minRespWin
-    }
-    Sys.sleep(runif(1, min = settings$minISI, max = max(settings$minISI, mean(settings$respWin))) / 1000)
-  }
-  if(substr(settings$machine, 1, 3) == "Sim" & !sr$resp$seen)
-    Sys.sleep(settings$respWin / 1000)
   th <- settings$finalf(states[[loc]])
   th <- ifelse(th > settings$maxStimulus, settings$maxStimulus, th)
   th <- ifelse(th < 0, 0, th)
   done <- settings$stopf(states[[loc]])
   level <- tail(sr$state$stimuli, 1)
   stimInfo <- getStepStimInfo(settings$machine, states[[loc]]$makeStim(level, 0))
+  # wait times
+  if(sr$resp$seen) {
+    isi <- round(runif(1, settings$minISI, max(settings$minISI, mean(settings$movingResp))))
+    # update response moving window and time
+    if(sr$resp$time > settings$winFloor) {
+      settings$movingResp <- c(settings$winFloor + sr$resp$time, head(settings$movingResp, length(settings$movingResp) - 1))
+      settings$respWin <- round(mean(settings$movingResp))
+      if(settings$respWin < settings$minRespWin) settings$respWin <- settings$minRespWin
+    }
+    Sys.sleep(isi / 1000)
+  }
   return(list(states = states, # updated states
               settings = settings, # updated settings
               res = list(loc = loc, x = settings$x[loc], y = settings$y[loc],
@@ -221,23 +247,30 @@ testStep <- function(loc, states, settings) {
                          th = round(th),
                          lum = stimInfo$lum, size = stimInfo$size, col = stimInfo$col)))
 }
-testCatchTrial <- function(settings, stim, loc) {
+testCatchTrial <- function(settings, pars) {
+  # return selected location with values for catch trial
+  stim <- settings$makeStimHelper(pars$x, pars$y,settings$respWin)(pars$db, 0)
   res <- opiPresent(stim)
   stimInfo <- getStepStimInfo(settings$machine, stim)
-  return(list(loc = loc, x = stim$x, y = stim$y,
-              level = round(stim$level), seen = res$seen,
+  # wait times
+  if(res$seen) {
+    isi <- round(runif(1, settings$minISI, max(settings$minISI, mean(settings$movingResp))))
+    Sys.sleep(isi / 1000)
+  }
+  return(list(loc = pars$loc, x = stim$x, y = stim$y,
+              level = -1, seen = res$seen,
               time = res$time, respWin = stimInfo$w,
               done = FALSE, th = -1,
               lum = stimInfo$lum, size = stimInfo$size, col = stimInfo$col))
 }
 getStepStimInfo <- function(machine, stim) {
   if(machine == "PhoneVR") {
-    lum <- stim$lum
+    lum <- round(stim$lum)
     size <- stim$sx
     w <- stim$w
     col <- stim$col
   } else {
-    lum <- stim$level
+    lum <- round(stim$level)
     size <- stim$size
     w <- stim$responseWindow
     col <- "#FFFFFF"
@@ -256,19 +289,7 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
                  presTime = appParams$presTime)
   } else makeStimHelper <- NULL
   if(perimetry == "luminance") {
-    if(substr(machine, 1, 3) == "Sim" | machine == "Octopus900") {
-      makeStimHelper <- function(x, y, w) {  # returns a function of (db,n)
-        ff <- function(db, n) db + n
-        body(ff) <- substitute({
-          s <- list(x = x, y = y,
-                    level = dbTocd(db, pars$maxval), size = pars$val,
-                    duration = pars$presTime, responseWindow = w)
-          class(s) <- "opiStaticStimulus"
-          return(s)
-        }, list(x = x, y = y, w = w))
-        return(ff)
-      }
-    } else if(machine == "PhoneVR") {
+    if(machine == "PhoneVR") {
       makeStimHelper <- function(x, y, w) {  # returns a function of (db,n)
         ff <- function(db, n) db + n
         body(ff) <- substitute({
@@ -283,21 +304,33 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
         }, list(x = x, y = y, w = w))
         return(ff)
       }
-    } else makeStimHelper <- NULL
-  } else if(perimetry == "size") {
-    if(substr(machine, 1, 3) == "Sim" | machine == "Octopus900") {
+    } else if(machine == "imo") {
       makeStimHelper <- function(x, y, w) {  # returns a function of (db,n)
         ff <- function(db, n) db + n
         body(ff) <- substitute({
-          s <- list(x = x, y = y,
-                    level = pars$val, size = dbTocd(db, pars$maxval),
+          s <- list(eye = pars$eye, x = x, y = y,
+                    level = dbTocd(db, pars$maxval), size = pars$val,
                     duration = pars$presTime, responseWindow = w)
           class(s) <- "opiStaticStimulus"
           return(s)
         }, list(x = x, y = y, w = w))
         return(ff)
       }
-    } else if(machine == "PhoneVR") {
+    } else if(machine == "Compass" | machine == "Octopus900" | substr(machine, 1, 3) == "Sim") {
+      makeStimHelper <- function(x, y, w) {  # returns a function of (db,n)
+        ff <- function(db, n) db + n
+        body(ff) <- substitute({
+          s <- list(x = x, y = y,
+                    level = dbTocd(db, pars$maxval), size = pars$val,
+                    duration = pars$presTime, responseWindow = w)
+          class(s) <- "opiStaticStimulus"
+          return(s)
+        }, list(x = x, y = y, w = w))
+        return(ff)
+      }
+    } else makeStimHelper <- NULL
+  } else if(perimetry == "size") {
+    if(machine == "PhoneVR") {
       makeStimHelper <- function(x, y, w) {  # returns a function of (db,n)
         ff <- function(db, n) db + n
         body(ff) <- substitute({
@@ -308,6 +341,30 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
                     sx = size, sy = size, lum = lum,
                     col = pars$col,
                     d = pars$presTime, w = w)
+          return(s)
+        }, list(x = x, y = y, w = w))
+        return(ff)
+      }
+    } else if(machine == "imo") {
+      makeStimHelper <- function(x, y, w) {  # returns a function of (db,n)
+        ff <- function(db, n) db + n
+        body(ff) <- substitute({
+          s <- list(eye = pars$eye, x = x, y = y,
+                    level = pars$val, size = dbTocd(db, pars$maxval),
+                    duration = pars$presTime, responseWindow = w)
+          class(s) <- "opiStaticStimulus"
+          return(s)
+        }, list(x = x, y = y, w = w))
+        return(ff)
+      }
+    } else if(machine == "Compass" | machine == "Octopus900" | substr(machine, 1, 3) == "Sim") {
+      makeStimHelper <- function(x, y, w) {  # returns a function of (db,n)
+        ff <- function(db, n) db + n
+        body(ff) <- substitute({
+          s <- list(x = x, y = y,
+                    level = pars$val, size = dbTocd(db, pars$maxval),
+                    duration = pars$presTime, responseWindow = w)
+          class(s) <- "opiStaticStimulus"
           return(s)
         }, list(x = x, y = y, w = w))
         return(ff)

@@ -1,12 +1,13 @@
 settingsUI <- function(id) {
+  ns <- NS(id)
+  opiImpl <- c("PhoneVR", "Compass", "imo", "Octopus900", "SimHenson", "SimYes", "SimNo")
   # init gamma file choices and selection
   choices  <- names(gammaf)
   if(length(choices) == 0) choices  <- "-"
   else if(appParams$gamma %in% choices) selected <- appParams$gamma
-  ns <- NS(id)
   tagList(
     fluidRow(
-      column(3, selectInput(ns("machine"), "OPI implementation", choices = c("PhoneVR", "Octopus900", "SimHenson", "SimYes", "SimNo"), selected = appParams$machine))
+      column(3, selectInput(ns("machine"), "OPI implementation", choices = opiImpl, selected = appParams$machine))
     ),
     htmlOutput(ns("device")),
     fluidRow(
@@ -38,7 +39,8 @@ settingsUI <- function(id) {
       column(2, numericInput(ns("fnrate"), "FN rate", appParams$fnrate)),
       column(2, numericInput(ns("presTime"), "Pres time", appParams$presTime)),
       column(2, numericInput(ns("respWin"), "Resp window", appParams$respWin)),
-      column(2, numericInput(ns("minRespWin"), "Min Resp Win", appParams$minRespWin)),
+      column(2, numericInput(ns("winFloor"), "Window floor", appParams$winFloor)),
+      column(2, numericInput(ns("minRespWin"), "Min window", appParams$minRespWin)),
       column(2, numericInput(ns("slidWidth"), "Slid width", appParams$slidWidth)),
       column(2, numericInput(ns("minISI"), "min ISI", appParams$minISI))
     ),
@@ -92,7 +94,14 @@ settings <- function(input, output, session) {
     if(appParams$machine == "PhoneVR") {
       enableConfigFields(c("device", "ip", "port", "gammaf",
                            "pars", "stcol", "bglum", "bgcol", "fixtype", "fixlum", "fixcol"))
-    } else if(appParams$machine == "Octopus900") {
+    }
+    if(appParams$machine == "Compass") {
+      enableConfigFields(c("device", "ip", "port"))
+    }
+    if(appParams$machine == "imo") {
+      enableConfigFields(c("device", "ip", "port"))
+    }
+    if(appParams$machine == "Octopus900") {
       enableConfigFields(c("device", "port", "O900path", "O900max", "O900wheel"))
     }
   }) %>% bindEvent(settingsChanged())
@@ -127,6 +136,7 @@ populateDefaults <- function(session) {
   updateNumericInput(session, "maxdiam", value = appParams$maxdiam)
   updateNumericInput(session, "presTime", value = appParams$presTime)
   updateNumericInput(session, "respWin", value = appParams$respWin)
+  updateNumericInput(session, "winFloor", value = appParams$winFloor)
   updateNumericInput(session, "minRespWin", value = appParams$minRespWin)
   updateNumericInput(session, "slidWidth", value = appParams$slidWidth)
   updateNumericInput(session, "minISI", value = appParams$minISI)

@@ -1,6 +1,6 @@
 clientUI <- function(id) {
   ns <- NS(id)
-  machineChoices <- c("PhoneVR", "Octopus900", "SimHenson", "SimYes", "SimNo")
+  opiImpl <- c("PhoneVR", "Compass", "imo", "Octopus900", "SimHenson", "SimYes", "SimNo")
   gridNames <- names(grids)
   names(gridNames) <- unname(sapply(grids, function(gg) return(gg$name)))
   algorithms <- list("ZEST" = "ZEST", "Full Threshold" = "FT",
@@ -9,13 +9,13 @@ clientUI <- function(id) {
     fluidRow(
       column(4, htmlOutput(ns("patient"))),
       column(3, selectInput(ns("machine"), "OPI implementation",
-                            choices = machineChoices, selected = appParams$machine)),
+                            choices = opiImpl, selected = appParams$machine)),
       column(2, radioButtons(ns("perimetry"), "Perimetry",
                              choices = c("luminance", "size"), selected = "luminance")),
       column(3, numericInput(ns("val"), "placeholder", value = NA)),
     ),
     fluidRow(
-      column(3, selectInput(ns("grid"), "Grid", choices = gridNames, selected = gridNames[8])),
+      column(3, selectInput(ns("grid"), "Grid", choices = gridNames, selected = gridNames[1])),
       column(2, selectInput(ns("eye"), "Eye", choices = list(Right = "R", Left = "L", Both = "B"),
                             selected = "Both")),
       column(3, selectInput(ns("algorithm"), "Algorithm", choices = algorithms, selected = "ZEST")),
@@ -81,7 +81,7 @@ client <- function(input, output, session) {
   ##############
   # schedule running a trial step or receiving its results
   observe({
-    invalidateLater(10)
+    invalidateLater(100)
     req(running)
     if(state == "run") { # run trial
       trialType <<- checkTrialType()
@@ -200,13 +200,13 @@ client <- function(input, output, session) {
       opiInitialized(TRUE)
       disableElements(c("machine", "init"))
       enableElements(c("fovea", "close", "run"))
-      msg(paste("OPI server ready for", input$machine))
+      msg(msgtxt$message)
     } else {
       enableElements(c("machine", "init"))
       msg(errortxt(msgtxt$message))
     }
     removeModal()
-    Sys.sleep(0.5)
+    Sys.sleep(0.25)
   }) %>% bindEvent(input$init, ignoreInit = TRUE)
   # close OPI connection
   observe({
@@ -222,7 +222,7 @@ client <- function(input, output, session) {
   # test fovea
   observe({
     if(input$machine == "PhoneVR")
-      statement <- "opiSetBackground B annulus"
+      statement <- "opiSetBackground B B annulus"
     else
       statement <- "opiSetBackground"
     ShinySender$push(title = "opiStatement", message = statement)
@@ -285,7 +285,7 @@ client <- function(input, output, session) {
   # start or continue test
   observe({
     if(input$machine == "PhoneVR")
-      statement <- paste("opiSetBackground B", appParams$fixtype)
+      statement <- paste("opiSetBackground B B", appParams$fixtype)
     else
       statement <- "opiSetBackground"
     ShinySender$push(title = "opiStatement", message = statement)
@@ -358,17 +358,27 @@ client <- function(input, output, session) {
       ShinySender$push(title = "opiStatement", message = "opiTestStepRun")
     }
     if(type == "FP") {
-      pars <- falsePositivePars(locs, input$eye, appParams$respWin)
-      statement <- paste("opiTestCatchTrial", pars$loc, pars$x, pars$y, pars$w, pars$db)
+      pars <- falsePositivePars(locs, input$eye)
+      statement <- paste("opiTestCatchTrial", pars$loc, pars$x, pars$y, pars$db)
       ShinySender$push(title = "opiStatement", message = statement)
     }
     if(type == "FN") {
-      pars <- falseNegativePars(locs, res, input$eye, appParams$respWin)
+      pars <- falseNegativePars(locs, res, input$eye)
       if(!is.null(pars)) {
-        statement <- paste("opiTestCatchTrial", pars$loc, pars$x, pars$y, pars$w, pars$db)
+        statement <- paste("opiTestCatchTrial", pars$loc, pars$x, pars$y, pars$db)
         ShinySender$push(title = "opiStatement", message = statement)
       }
     }
+  }
+  # get results from the trial and return if done
+  getTrialResults <- function(type) {
+    done <- FALSE
+    resTrial(readResults(type))
+    if(!is.null(resTrial())) {
+      if(type == "F") done <- resTrial()$done
+      if(type == "N") done <- all(locs$done)
+      if(done) finish()
+    } else msg(errortxt("could not read the trial results from OPI server"))
   }
   # read results
   readResults <- function(type) {
@@ -394,16 +404,6 @@ client <- function(input, output, session) {
       }
     } else msg(errortxt(msgtxt$message))
     return(resReceived)
-  }
-  # get results from the trial and return if done
-  getTrialResults <- function(type) {
-    done <- FALSE
-    resTrial(readResults(type))
-    if(!is.null(resTrial())) {
-      if(type == "F") done <- resTrial()$done
-      if(type == "N") done <- all(locs$done)
-      if(done) finish()
-    } else msg(errortxt("could not read the trial results from OPI server"))
   }
   # check if finished
   finish <- function() {
@@ -446,7 +446,7 @@ client <- function(input, output, session) {
     tt0 <<- Sys.time()
     if(type == "A" || type == "F") {
       foveadb <<- NULL
-      # remove all results regarding foveal tests
+      # remove all results at the fovea
       res <<- res[res$type != "F",]
     }
     if(type == "A" || type == "N") {
@@ -454,7 +454,7 @@ client <- function(input, output, session) {
       if(input$eye == "L") locs$x <<- -locs$x
       locs$th <<- NA
       locs$done <<- FALSE
-      # remove all results that are not foveal test
+      # remove all results but those at the fovea
       res <<- res[res$type == "F",]
     }
   }

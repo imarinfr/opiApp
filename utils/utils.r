@@ -312,16 +312,16 @@ resPlot <- function(res, locs, eye, foveadb, maxlum) {
   if(any(isna))  points(locs$x[isna], locs$y[isna], pch = 19, cex = ptcex, col = cols[locs$w[isna]])
   if(any(!isna)) text(locs$x[!isna], locs$y[!isna], locs$th[!isna], col = cols[locs$w[!isna]], font = 2)
 }
-falsePositivePars <- function(locs, eye,  w) {
+falsePositivePars <- function(locs, eye) {
   # generate an invisible stimulus
   loc <- sample(1:nrow(locs), 1)
   x <- ifelse(eye == "L", -locs$x[loc], locs$x[loc])
   y <- locs$y[loc]
-  return(data.frame(loc = loc, x = x, y = y, w = w, db = 50))
+  return(data.frame(loc = loc, x = x, y = y, db = 50))
 }
-falseNegativePars <- function(locs, res, eye, w) {
+falseNegativePars <- function(locs, res, eye) {
   # keep only the dimmest stimulus and select one at random
-  res <- res[res$seen,c("x", "y", "level")]
+  res <- res[res$type == "N" & res$done, c("x", "y", "level")]
   if(nrow(res) == 0) return(NULL)
   ur <- unique(res[,c("x", "y")])
   for(i in 1:nrow(ur))
@@ -332,7 +332,7 @@ falseNegativePars <- function(locs, res, eye, w) {
   x <- ifelse(eye == "L", -locs$x[loc], locs$x[loc])
   y <- locs$y[loc]
   # generate a very visible stimulus
-  return(data.frame(loc = loc, x = x, y = y, w = w, db = db))
+  return(data.frame(loc = loc, x = x, y = y, db = db))
 }
 enableElements <- function(ids) lapply(ids, enable)
 disableElements <- function(ids) lapply(ids, disable)
@@ -345,9 +345,10 @@ parsePatientOutput <- function(patient) {
   if(is.na(patient$id)) {
     txt <- errortxt("Please select a patient first")
   } else {
-    txt <- paste0("<strong>Patient ID:</strong> ", patient$id, ". <strong>Type:</strong> ", patient$type, "</br>")
+    txt <- paste0("<strong>Patient ID:</strong> ", patient$id, "</br>")
     txt <- paste0(txt, " <strong>Name:</strong> ",  patient$name, " ", patient$surname, "</br>")
     txt <- paste0(txt, " <strong>Age:</strong> ", patient$age, ". <strong>Gender:</strong> ", patient$gender, "</br>")
+    txt <- paste0(txt, "<strong>Type:</strong> ", patient$type)
   }
   return(HTML(txt))
 }
@@ -362,16 +363,17 @@ renderResult <- function(trialRes, res, npoints) {
     time <- trialRes$time
     respWin <- trialRes$respWin
     seen <- trialRes$seen
-    if(seen) {
-      seentxt <- paste("Stimulus <strong>seen</strong>", "in", time, "ms")
-    } else
-      seentxt <- paste("Stimulus <strong>not seen</strong>")
-    if(trialRes$type == "N" || trialRes$type == "F")
-      respWintxt <- paste("Response window was", respWin, "ms")
+    if(trialRes$type == "N" | trialRes$type == "F")
+      seentxt <- paste("Stimulus")
     else if(trialRes$type == "FP")
-      respWintxt <- paste("False positive trial")
+      seentxt <- paste("FP trial")
     else if(trialRes$type == "FN")
-      respWintxt <- paste("False negative trial")
+      seentxt <- paste("FN trial")
+    if(seen) {
+      seentxt <- paste(seentxt, "<strong>seen</strong>", "in", time, "ms")
+    } else
+      seentxt <- paste(seentxt, "<strong>not seen</strong>")
+    respWintxt <- paste("Response window was", respWin, "ms")
   }
   if(sum(res$type == "N") == 0) {
     rtsd <- rtm <- ""
@@ -380,7 +382,7 @@ renderResult <- function(trialRes, res, npoints) {
     tttxt <- tptxt <- "00:00"
   } else {
     npres <- sum(res$type == "N")
-    nfinished <- sum(res$done) # locations finished
+    nfinished <- sum(res$type == "N" & res$done)
     # compute false positives and negatives
     fp  <- sum(res$type == "FP" & res$seen)
     fpt <- sum(res$type == "FP")
