@@ -19,7 +19,7 @@ clientUI <- function(id) {
       column(2, selectInput(ns("eye"), "Eye", choices = list(Right = "R", Left = "L", Both = "B"),
                             selected = "Both")),
       column(3, selectInput(ns("algorithm"), "Algorithm", choices = algorithms, selected = "ZEST")),
-      column(3, numericInput(ns("algval"), "placeholder", value = NA)),
+      column(3, numericInput(ns("algpar"), "placeholder", value = NA)),
     ),
     fluidRow(column(12, htmlOutput(ns("msgconn")))),
     fluidRow(
@@ -64,6 +64,7 @@ client <- function(input, output, session) {
   state <- NA
   runType <- NULL
   trialType <- NULL
+  lastTrialType <- NULL
   foveadb <- NULL
   res <- NULL
   locs <- NULL
@@ -85,7 +86,8 @@ client <- function(input, output, session) {
     req(running)
     if(state == "run") { # run trial
       trialType <<- checkTrialType()
-      runStep(trialType)
+      success <- runStep(trialType)
+      lastTrialType <<- trialType
       state <<- "read"
     } else if(state == "read") { # read results
       getTrialResults(trialType)
@@ -162,12 +164,12 @@ client <- function(input, output, session) {
   }) %>% bindEvent(input$val)
   # if algorithm changes
   observe({
-    if(is.na(input$algval)) fillAlgVal()
-  }) %>% bindEvent(input$algval)
+    if(is.na(input$algpar)) fillAlgPar()
+  }) %>% bindEvent(input$algpar)
   # if algorithm changes delete all
   observe({
     initRunVariables("A")
-    fillAlgVal()
+    fillAlgPar()
   }) %>% bindEvent(input$algorithm)
   # if eye changes delete all
   observe({
@@ -243,7 +245,7 @@ client <- function(input, output, session) {
   # if OK to test fovea
   observe({
     statement <- paste("opiTestInit", input$eye, "luminance",
-                       input$algorithm, 0.43, input$algval, "fovea")
+                       input$algorithm, 0.43, input$algpar, "fovea")
     ShinySender$push(title = "opiStatement", message = statement)
     while(ShinyReceiver$empty()) Sys.sleep(0.1)
     msgtxt <- ShinyReceiver$pop()
@@ -305,7 +307,7 @@ client <- function(input, output, session) {
   # if OK to run test in selected grid
   observe({
     statement <- paste("opiTestInit", input$eye, input$perimetry, input$algorithm,
-                       input$val, input$algval, input$grid)
+                       input$val, input$algpar, input$grid)
     ShinySender$push(title = "opiStatement", message = statement)
     while(ShinyReceiver$empty()) Sys.sleep(0.1)
     msgtxt <- ShinyReceiver$pop()
@@ -343,10 +345,8 @@ client <- function(input, output, session) {
   checkTrialType <- function() {
     if(runType == "F") return("F") # fovea trial step
     if(sum(res$type == "N") == 0) return("N") # first step is a normal trial
-    # check if there are catch trials to run
-    lastTrials <- tail(res$type, 2)
-    fp <- !any(lastTrials == "FP") && sum(res$type == "N") %% appParams$fprate == 0
-    fn <- !any(lastTrials == "FN") && sum(res$type == "N") %% appParams$fnrate == 0
+    fp <- lastTrialType != "FP" && sum(res$type == "N") %% appParams$fprate == 0
+    fn <- lastTrialType != "FN" && sum(res$type == "N") %% appParams$fnrate == 0
     if(!fp && !fn) return("N") # if not, then normal step
     # FP has priority over FN
     if(fp) return("FP")
@@ -358,7 +358,8 @@ client <- function(input, output, session) {
       ShinySender$push(title = "opiStatement", message = "opiTestStepRun")
     }
     if(type == "FP") {
-      pars <- falsePositivePars(locs, input$eye)
+      pars <- falsePositivePars(input$machine, input$perimetry, appParams$bglum,
+                                appParams$maxlum, locs, input$eye)
       statement <- paste("opiTestCatchTrial", pars$loc, pars$x, pars$y, pars$db)
       ShinySender$push(title = "opiStatement", message = statement)
     }
@@ -367,7 +368,7 @@ client <- function(input, output, session) {
       if(!is.null(pars)) {
         statement <- paste("opiTestCatchTrial", pars$loc, pars$x, pars$y, pars$db)
         ShinySender$push(title = "opiStatement", message = statement)
-      }
+      } else ShinyReceiver$push("FN", "No suitable locations for FN catch trial. Moving on")
     }
   }
   # get results from the trial and return if done
@@ -378,7 +379,7 @@ client <- function(input, output, session) {
       if(type == "F") done <- resTrial()$done
       if(type == "N") done <- all(locs$done)
       if(done) finish()
-    } else msg(errortxt("could not read the trial results from OPI server"))
+    }
   }
   # read results
   readResults <- function(type) {
@@ -402,7 +403,7 @@ client <- function(input, output, session) {
         else if(type == "N")
           updateLocations(resReceived)
       }
-    } else msg(errortxt(msgtxt$message))
+    } else if(msgtxt$title != "FN") msg(errortxt(msgtxt$message))
     return(resReceived)
   }
   # check if finished
@@ -411,7 +412,7 @@ client <- function(input, output, session) {
     running <<- FALSE
     state <<- "run"
     enableRunElements()
-    disableElements(c("eye", "algorithm", "algval", "pause", "stop", "close"))
+    disableElements(c("eye", "algorithm", "algpar", "pause", "stop", "close"))
     if(runType == "F")
       msg("Test finished at fovea")
     else
@@ -428,13 +429,13 @@ client <- function(input, output, session) {
     else if(input$perimetry == "size")
       updateNumericInput(session, "val", label = "Stimulus luminance", value = appParams$lumForSize)
   }
-  fillAlgVal <- function() {
+  fillAlgPar <- function() {
     if(input$algorithm == "staircase" | input$algorithm == "FT" ) {
-      updateNumericInput(session, "algval", label = "Initial estimate", value = appParams$est)
+      updateNumericInput(session, "algpar", label = "Initial estimate", value = appParams$est)
     } else if(input$algorithm == "MOCS") {
-      updateNumericInput(session, "algval", label = "Repetitions", value = appParams$nreps)
+      updateNumericInput(session, "algpar", label = "Repetitions", value = appParams$nreps)
     } else if(input$algorithm == "ZEST") {
-      updateNumericInput(session, "algval", label = "Max estimate SD", value = appParams$estSD)
+      updateNumericInput(session, "algpar", label = "Max estimate SD", value = appParams$estSD)
     }
   }
   initRunVariables <- function(type) {
@@ -496,7 +497,7 @@ client <- function(input, output, session) {
     # then save the processed test
     fname <- paste0("results/", fid, ".csv")
     dat <- prepareToSave(patient(), input$machine, input$perimetry, input$val,
-                         input$grid, input$eye, input$algorithm, input$algval, tdate, ttime,
+                         input$grid, input$eye, input$algorithm, input$algpar, tdate, ttime,
                          input$comments, res, foveadb, locs)
     # if file exist, append result
     if(file.exists(fname)) dat <- rbind(read.csv(file = fname, colClasses = "character"), dat)

@@ -17,8 +17,8 @@ settingsUI <- function(id) {
     ),
     fluidRow(
       column(4, selectInput(ns("gammaf"), "Gamma function", choices = choices, selected = appParams$gammaf)),
-      column(4, radioButtons(ns("O900max"), "Max Luminance", choiceNames = list("4000 asb", "10000 asb"), choiceValues = list("false", "true"), selected = appParams$O900max, inline = TRUE)),
-      column(4, radioButtons(ns("O900wheel"), "Big Wheel", choiceNames = list("yes", "no"), choiceValues = list("true", "false"), selected = appParams$O900wheel, inline = TRUE))
+      column(4, radioButtons(ns("O900max"), "Perimeter maximum", choiceNames = list("4000 asb", "10000 asb"), choiceValues = list(FALSE, TRUE), selected = appParams$O900max, inline = TRUE)),
+      column(4, radioButtons(ns("O900wheel"), "Big Wheel", choiceNames = list("yes", "no"), choiceValues = list(TRUE, FALSE), selected = appParams$O900wheel, inline = TRUE))
     ),
     htmlOutput(ns("pars")),
     fluidRow(
@@ -31,12 +31,13 @@ settingsUI <- function(id) {
     ),
     htmlOutput(ns("general")),
     fluidRow(
-      column(2, numericInput(ns("minlum"), "Min lum", appParams$minlum)),
       column(2, numericInput(ns("maxlum"), "Max lum", appParams$maxlum)),
-      column(2, numericInput(ns("mindiam"), "Min diam", appParams$mindiam)),
-      column(2, numericInput(ns("maxdiam"), "Max diam", appParams$maxdiam)),
+      column(2, numericInput(ns("maxdiam"), "Max diam (\u00B0)", appParams$maxdiam)),
+      column(2, numericInput(ns("dbstep"), "Step (dB)", appParams$dbstep)),
       column(2, numericInput(ns("fprate"), "FP rate", appParams$fprate)),
-      column(2, numericInput(ns("fnrate"), "FN rate", appParams$fnrate)),
+      column(2, numericInput(ns("fnrate"), "FN rate", appParams$fnrate))
+    ),
+    fluidRow(
       column(2, numericInput(ns("presTime"), "Pres time", appParams$presTime)),
       column(2, numericInput(ns("respWin"), "Resp window", appParams$respWin)),
       column(2, numericInput(ns("winFloor"), "Window floor", appParams$winFloor)),
@@ -130,10 +131,9 @@ populateDefaults <- function(session) {
   updateColourInput(session, "fixlum", value = appParams$fixlum)
   updateColourInput(session, "fixcol", value = appParams$fixcol)
   updateColourInput(session, "stcol", value = appParams$stcol)
-  updateNumericInput(session, "minlum", value = appParams$minlum)
   updateNumericInput(session, "maxlum", value = appParams$maxlum)
-  updateNumericInput(session, "mindiam", value = appParams$mindiam)
   updateNumericInput(session, "maxdiam", value = appParams$maxdiam)
+  updateNumericInput(session, "dbstep", value = appParams$dbstep)
   updateNumericInput(session, "presTime", value = appParams$presTime)
   updateNumericInput(session, "respWin", value = appParams$respWin)
   updateNumericInput(session, "winFloor", value = appParams$winFloor)

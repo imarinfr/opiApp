@@ -32,7 +32,7 @@ parseMessage <- function(msg, appParams) {
   if(cmd == "opiTestInit") {
     if(length(msg) != 7) return(NULL)
     pars <- opiTestInitParams(msg)
-    if(is.na(pars$val) | is.na(pars$algval)) return(NULL)
+    if(is.na(pars$val) | is.na(pars$algpar)) return(NULL)
   }
   if(cmd == "opiTestStepRun") {
     if(length(msg) != 1) return(NULL)
@@ -119,55 +119,68 @@ opiBackgroundParams <- function(machine, appParams, msg) {
 opiTestInitParams <- function(msg)
   return(list(eye = msg[2], perimetry = msg[3],
               algorithm = msg[4], val = as.numeric(msg[5]),
-              algval = as.numeric(msg[6]), grid = msg[7]))
+              algpar = as.numeric(msg[6]), grid = msg[7]))
 opiTestCatchTrialParams <- function(msg)
   return(list(loc = as.numeric(msg[2]),
               x = as.numeric(msg[3]), y = as.numeric(msg[4]),
               db = as.numeric(msg[5])))
 # prepare test settings
-testSetup <- function(machine, appParams, eye, perimetry, algorithm, val, algval, locs) {
+testSetup <- function(machine, appParams, eye, perimetry, algorithm, val, algpar, locs) {
   # get stimulus helper for the specific machine (OPI implementation) and
   # perimetry type (luminance or size)
   pars <- makeStimHelperConstructor(machine, perimetry, eye, val, appParams)
   # get the rest of algorithm-dependent parameters
   settings <- NULL
   states <- NULL
-  maxStimulus <- round(cdTodb(pars$minVal, pars$maxVal))
-  domain <- 0:maxStimulus
+  if(perimetry == "luminance") minval <- dbTocd(40) # cd/m2; set to HFA's 40 dB or 0.3183 cd/m2
+  if(perimetry == "size") minval <- 0.05 # degrees; approx to Size I / 2.
+  # min val gest rounded to the nearest dB integer that is greater than minval
+  if(machine == "PhoneVR" | machine == "imo" | machine == "Compass")
+    minstim <- ceiling(cdTodb(appParams$bglum + minval, pars$maxval))
+  else
+    minstim <- ceiling(cdTodb(minval, pars$maxval))
+  # domain is different for ZEST than for the rest
   if(algorithm == "ZEST") {
+    # add offset to the domain
     offset <- 5
-    domain <- -offset:(maxStimulus + offset)
-    guess <- round(85 * maxStimulus / 100) # 85th percentile
+    # the equivalent to 30 dB HFA
+    guess <- ceiling(cdTodb(dbTocd(30), pars$maxval))
+    domain <- seq(-offset, minstim + offset, by = appParams$dbstep)
+  } else if(algorithm == "MOCS") {
+    # add n levels around the initial guess (at 0 in the domain) separated by dbstep
+    nlevels <- 3
+    # the equivalent to 30 dB HFA
+    guess <- ceiling(cdTodb(dbTocd(30), pars$maxval))
+    domain <- seq(-nlevels, nlevels, by = appParams$dbstep)
+  } else
+    domain <- seq(0, minstim, by = appParams$dbstep)
+  if(algorithm == "ZEST") {
     # we do not pass the makeStim here, but generate one at every iteration to be
     # able to modify the response window
     for(i in 1:nrow(locs))
       states[[i]] <- ZEST.start(domain = domain,
-                                prior = makePMF(domain, guess),
-                                stopType = "S", stopValue = algval,
-                                minStimulus = 0, maxStimulus = maxStimulus,
+                                prior = bimodal_pmf(domain, guess),
+                                stopType = "S", stopValue = algpar,
+                                minStimulus = 0, maxStimulus = minstim,
                                 makeStim = NULL)
     settings$stepf <- ZEST.step
     settings$stopf <- ZEST.stop
     settings$finalf <- ZEST.final
   } else if(algorithm == "FT") {
     for(i in 1:nrow(locs))
-      states[[i]] <- FT.start(est = algval, instRange = c(0, maxStimulus), makeStim = NULL)
+      states[[i]] <- FT.start(est = algpar, instRange = c(0, minstim), makeStim = NULL)
     settings$stepf <- FT.step
     settings$stopf <- FT.stop
     settings$finalf <- FT.final2
   } else if(algorithm == "staircase") {
     for(i in 1:nrow(locs))
-      states[[i]] <- fourTwo.start(est = algval, instRange = c(0, maxStimulus), makeStim = NULL)
+      states[[i]] <- fourTwo.start(est = algpar, instRange = c(0, minstim), makeStim = NULL)
     settings$stepf <- fourTwo.step
     settings$stopf <- fourTwo.stop
     settings$finalf <- fourTwo.final2 # we use a different one to return any value at all
   } else if(algorithm == "MOCS") {
-    nreps <- algval
-    guess <- round(75 * maxStimulus / 100) # TODO: placeholder. 75th percentile
-    levelRange <- c(-6, 6) # TODO: placeholder. Range of levels to test around the estimate
-    dbSep <- 2 # TODO: placeholder. Stimulus separation in dBs
     for(i in 1:nrow(locs))
-      states[[i]] <- MOCS.start(domain, nreps, guess, levelRange, dbSep, makeStim = NULL)
+      states[[i]] <- MOCS.start(guess, domain, algpar, minstim)
     settings$stepf <- MOCS.step
     settings$stopf <- MOCS.stop
     settings$finalf <- MOCS.final
@@ -183,7 +196,10 @@ testSetup <- function(machine, appParams, eye, perimetry, algorithm, val, algval
     # make stimulus helper, locations waves, initial locations, and response window
     settings$makeStimHelper <- pars$makeStimHelper
     settings$domain <- domain
-    settings$maxStimulus <- maxStimulus
+    settings$minstim <- minstim
+    settings$maxval <- pars$maxval
+    settings$maxstim <- pars$maxstim
+    settings$algpar <- algpar
     settings$nn <- findNeighbors(locs)
     settings$respWin <- appParams$respWin
     settings$winFloor <- appParams$winFloor
@@ -203,7 +219,9 @@ testStep <- function(states, settings) {
   # update the makeStim with the most current response time
   states[[loc]]$makeStim <- settings$makeStimHelper(settings$x[loc], settings$y[loc], settings$respWin)
   # present stimulus and obtain response
-  sr <- settings$stepf(states[[loc]])
+  sr <- tryCatch(settings$stepf(states[[loc]]),
+           error = function(e) NULL)
+  if(is.null(sr)) return(NULL)
   if(sr$resp$seen & # simulate random response time
      substr(settings$machine, 1, 3) == "Sim")
     sr$resp$time <- round(runif(1, settings$winFloor, settings$respWin))
@@ -220,7 +238,7 @@ testStep <- function(states, settings) {
     }
   }
   th <- settings$finalf(states[[loc]])
-  th <- ifelse(th > settings$maxStimulus, settings$maxStimulus, th)
+  th <- ifelse(th > settings$minstim, settings$minstim, th)
   th <- ifelse(th < 0, 0, th)
   done <- settings$stopf(states[[loc]])
   level <- tail(sr$state$stimuli, 1)
@@ -280,26 +298,23 @@ getStepStimInfo <- function(machine, stim) {
 # stimulus helper constructor
 makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
   if(perimetry == "luminance") {
-    pars <- list(eye = eye, val = val, bglum = appParams$bglum, col = appParams$stcol,
-                 minval = appParams$minlum, maxval = appParams$maxlum,
-                 presTime = appParams$presTime)
+    maxval <- appParams$maxlum
   } else if(perimetry == "size") {
-    pars <- list(eye = eye, val = val, bglum = appParams$bglum, col = appParams$stcol,
-                 minval = appParams$mindiam, maxval = appParams$maxdiam,
-                 presTime = appParams$presTime)
+    maxval <- appParams$maxdiam
   } else makeStimHelper <- NULL
+  if(perimetry == "size" & (machine == "PhoneVR" | machine == "imo" | machine == "Compass"))
+    val <- appParams$bglum + val # luminance value for the size stimulus is above background
+  pars <- list(eye = eye, val = val)
   if(perimetry == "luminance") {
     if(machine == "PhoneVR") {
       makeStimHelper <- function(x, y, w) {  # returns a function of (db,n)
         ff <- function(db, n) db + n
         body(ff) <- substitute({
-          size <- pars$val
-          lum <- dbTocd(db, pars$maxval)
           s <- list(eye = pars$eye,
                     x = ifelse(pars$eye == "L", -x, x), y = y,
-                    sx = size, sy = size, lum = pars$bglum + lum,
-                    col = pars$col,
-                    d = pars$presTime, w = w)
+                    sx = pars$val, sy = pars$val, lum = dbTocd(db, maxval),
+                    col = appParams$stcol, d = appParams$presTime, w = w)
+          class(s) <- "opiStaticStimulus"
           return(s)
         }, list(x = x, y = y, w = w))
         return(ff)
@@ -308,9 +323,10 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
       makeStimHelper <- function(x, y, w) {  # returns a function of (db,n)
         ff <- function(db, n) db + n
         body(ff) <- substitute({
-          s <- list(eye = pars$eye, x = x, y = y,
-                    level = dbTocd(db, pars$maxval), size = pars$val,
-                    duration = pars$presTime, responseWindow = w)
+          s <- list(eye = pars$eye,
+                    x = x, y = y,
+                    size = pars$val, level = dbTocd(db, maxval),
+                    duration = appParams$presTime, responseWindow = w)
           class(s) <- "opiStaticStimulus"
           return(s)
         }, list(x = x, y = y, w = w))
@@ -321,8 +337,8 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
         ff <- function(db, n) db + n
         body(ff) <- substitute({
           s <- list(x = x, y = y,
-                    level = dbTocd(db, pars$maxval), size = pars$val,
-                    duration = pars$presTime, responseWindow = w)
+                    size = pars$val, level = dbTocd(db, maxval),
+                    duration = appParams$presTime, responseWindow = w)
           class(s) <- "opiStaticStimulus"
           return(s)
         }, list(x = x, y = y, w = w))
@@ -334,13 +350,10 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
       makeStimHelper <- function(x, y, w) {  # returns a function of (db,n)
         ff <- function(db, n) db + n
         body(ff) <- substitute({
-          size <- dbTocd(db, pars$maxval)
-          lum <- pars$bglum + pars$val
           s <- list(eye = pars$eye,
                     x = ifelse(pars$eye == "L", -x, x), y = y,
-                    sx = size, sy = size, lum = lum,
-                    col = pars$col,
-                    d = pars$presTime, w = w)
+                    sx = dbTocd(db, maxval), sy = dbTocd(db, maxval), lum = pars$val,
+                    col = appParams$stcol, d = appParams$presTime, w = w)
           return(s)
         }, list(x = x, y = y, w = w))
         return(ff)
@@ -350,8 +363,8 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
         ff <- function(db, n) db + n
         body(ff) <- substitute({
           s <- list(eye = pars$eye, x = x, y = y,
-                    level = pars$val, size = dbTocd(db, pars$maxval),
-                    duration = pars$presTime, responseWindow = w)
+                    level = pars$val, size = dbTocd(db, maxval),
+                    duration = appParams$presTime, responseWindow = w)
           class(s) <- "opiStaticStimulus"
           return(s)
         }, list(x = x, y = y, w = w))
@@ -362,8 +375,8 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
         ff <- function(db, n) db + n
         body(ff) <- substitute({
           s <- list(x = x, y = y,
-                    level = pars$val, size = dbTocd(db, pars$maxval),
-                    duration = pars$presTime, responseWindow = w)
+                    level = pars$val, size = dbTocd(db, maxval),
+                    duration = appParams$presTime, responseWindow = w)
           class(s) <- "opiStaticStimulus"
           return(s)
         }, list(x = x, y = y, w = w))
@@ -371,7 +384,7 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
       }
     } else makeStimHelper <- NULL
   }
-  return(list(minVal = pars$minval, maxVal = pars$maxval, makeStimHelper = makeStimHelper))
+  return(list(makeStimHelper = makeStimHelper, maxval = maxval))
 }
 # Staircase final function
 fourTwo.final2 <- function(state) {
@@ -379,7 +392,7 @@ fourTwo.final2 <- function(state) {
   if(!is.na(state$stairResult)) return(state$stairResult)
   if(length(unique(state$responses)) < 2) return(state$startingEstimate)
   # average the last seen and the last not seen
-  return(round((tail(state$stimuli[state$responses], 1) + tail(state$stimuli[!state$responses], 1)) / 2))
+  return((tail(state$stimuli[state$responses], 1) + tail(state$stimuli[!state$responses]) / 2))
 }
 # Full Threshold final function. Same as for Staircase
 FT.final2 <- function(state) {
@@ -387,17 +400,15 @@ FT.final2 <- function(state) {
   return(ifelse(is.na(est), state$startingEstimate, est))
 }
 # implementation of MOCS
-MOCS.start <- function(domain, nreps, guess, levelRange, dbSep, makeStim, ...) {
-  range <- guess + seq(levelRange[1], levelRange[2], by = dbSep)
-  if(min(range) < min(domain) || max(range) > max(domain))
-    stop("MOCS.start: testing range must be contained device range")
-  series <- sample(rep(range, nreps), nreps * length(range), replace = FALSE)
+MOCS.start <- function(guess, domain, nreps, minstim, makeStim = NULL, ...) {
+  pars <- MOCSpars(guess, domain, nreps, minstim)
   return(list(name = "MOCS",
-              estimate = guess,
-              range = range,
-              series = series,                      # random series of presentations
-              currentLevel = series[1],
+              domain = pars$domain,
+              estimate = pars$guess,
+              series = pars$series,                 # random series of presentations
+              currentLevel = pars$currentLevel,
               makeStim = makeStim,
+              range = c(minstim, 0),                # range of stimulus for the device
               finished = FALSE,                     # flag to say it is finished
               numPresentations = 0,                 # number of presentations so far
               stimuli = NULL,                       # vector of stims shown
@@ -423,7 +434,6 @@ MOCS.step <- function(state) {
   # check if finished
   if(length(state$stimuli) == length(state$series))
     state$finished <- TRUE
-  
   return(list(state = state, resp = opiResp))
 }
 # check if finished
@@ -432,58 +442,80 @@ MOCS.stop <- function(state) {
 }
 # return best brute-force linear estimate
 MOCS.final <- function(state) {
-  if(all(state$responses)) return(99)
-  if(all(!state$responses)) return(-2)
-  # best linear estimate of the threshold at p(seen) = 0.5
-  seenTrials <- state$stimuli[state$responses]
-  notSeenTrials <- state$stimuli[!state$responses]
+  if(is.null(state$responses)) return(state$estimate)
+  if(all(state$responses)) return(state$range[1])
+  if(all(!state$responses)) return(state$range[2])
+  if(length(unique(state$stimuli)) < length(state$domain))
+    return(state$estimate)
   # get FOS data
-  prob <- sapply(state$range, function(db) {
-    idxseen <- which(names(seenTrials) %in% db)
-    if(length(idxseen) == 0) return(0)
-    idxnot <- which(names(notSeenTrials) %in% db)
-    if(length(idxnot) == 0) return(1)
-    return(seenTrials[idxseen] / (seenTrials[idxseen] + notSeenTrials[idxnot]))
+  seen <- table(state$stimuli[state$responses])
+  notseen <- table(state$stimuli[!state$responses])
+  dat <- matrix(c(rep(0, 2 * length(state$domain))), length(state$domain), 2)
+  dat[which(state$domain %in% names(seen)),1] <- seen
+  dat[which(state$domain %in% names(notseen)),2] <- notseen
+  if(any(dat[,1] + dat[,2] < 6)) return(state$estimate)
+  tryCatch({
+    invisible(fos <- psyfun.2asym(dat ~ state$domain, link = probit.2asym))
+    est <- (fos$family$linkfun(0.5) - fos$coefficients[1]) / fos$coefficients[2]
+  }, error = function(e) {
+    est <- state$estimate
   })
-  if(all(prob == 0)) return(mean(state$range))
-  est <- approx(prob, state$range, 0.5)$y #TODO placeholder
-  return(est)
+  if(est < min(state$domain)) est <- min(state$domain)
+  if(est > max(state$domain)) est <- max(state$domain)
+  return(est, 1)
 }
-# set up probability mass function (PMF)
-makePMF <- function (domain, guess, weight = 4, floor = 0.001) {
-  glaucoma_pmf <- rep(0.001,length(domain))
-  glaucoma_pmf[1:10] <- c(rep(0.001, 4), 0.2, 0.3, 0.2, 0.15, 0.1, 0.02)
-  healthy_pmf <- function(normalModePoint) {
-    temp <- c(rep(0.001, 100), 0.001, 0.03, 0.05, 0.1, 0.2, 0.3, 0.2, 0.05, 0.025, 0.01, rep(0.001, 100))
-    mode <- which.max(temp)
-    return(temp[(mode - normalModePoint + domain[1]):(mode - normalModePoint + domain[length(domain)])])
-  }
-  # bimodal prior
-  makeBimodalPMF <- function(normalModePoint, weight, pdf.floor) {
-    npdf <- healthy_pmf(normalModePoint)
-    cpdf <- npdf * weight + glaucoma_pmf
-    cpdf[which(cpdf < pdf.floor)] = pdf.floor 
-    return(cpdf)
-  }
-  # define prior PMF, minimum stimulus and maximum stimulus for luminance test
-  # bimodal Prior PMF
-  prior_pmf <- makeBimodalPMF(guess, weight, floor)
-  # normalize PMF
-  prior_pmf <- prior_pmf / sum(prior_pmf)
-  return(prior_pmf)
+# constructing parameters for MOCS
+MOCSpars <- function(guess, domain, nreps, minstim) {
+  if(guess < 0) guess <- 0
+  if(guess > minstim) guess <- minstim
+  domain <- guess + domain
+  domain <- domain[domain >= 0 & domain <= minstim]
+  series <- sample(rep(domain, nreps), nreps * length(domain), replace = FALSE)
+  currentLevel <- series[1]
+  return(list(domain = domain, guess = guess, series = series,
+              currentLevel = currentLevel))
+}
+# PMF for healthy subjects
+healthy_pmf <- function(domain, guess) {
+  pmfh <- data.frame(db=c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
+                     p=c(0.03, 0.05, 0.1, 0.2, 0.3, 0.2, 0.05, 0.025, 0.01))
+  pmfh$db <- pmfh$db + guess
+  pmf <- rep(0, length(domain))
+  pmf[which(domain %in% pmfh$db)] <- pmfh$p
+  return(pmf / sum(pmf))
+}
+# PMF for glaucoma patients
+glaucoma_pmf <- function(domain) {
+  pmfg <- data.frame(db=c(-1, 0, 1, 2, 3, 4),
+                     p=c(0.2, 0.3, 0.2, 0.15, 0.1, 0.02))
+  pmf <- rep(0, length(domain))
+  pmf[which(domain %in% pmfg$db)] <- pmfg$p
+  return(pmf / sum(pmf))
+}
+# bimodal PMF prior
+bimodal_pmf <- function(domain, guess, weight = 4) {
+  pmfb <- healthy_pmf(domain, guess) * weight + glaucoma_pmf(domain)
+  pmfb[which(pmfb == 0)] <- 0.001
+  return(pmfb / sum(pmfb))
 }
 # Create table of neighboring locations
 findNeighbors <- function(locs) {
   if(nrow(locs) == 1) return(NULL)
   # obtain the vertices from Voronoi tessellation
-  vertices <- do.call(rbind, lapply(tile.list(deldir(locs)), function(tt) return(data.frame(loc = tt$ptNum ,x = tt$x, y = tt$y))))
+  vertices <- do.call(rbind, lapply(tile.list(deldir(locs)), function(tt)
+    return(data.frame(loc = tt$ptNum ,x = tt$x, y = tt$y))))
   nn <- do.call(rbind, lapply(1:max(vertices$loc), function(loc) {
     idx <- which(vertices$loc == loc)
     pntVertices <- vertices[idx,]
     nn <- rep(FALSE, max(vertices$loc))
     idx <- unique(vertices$loc[which(vertices$x %in% pntVertices$x & vertices$y %in% pntVertices$y)])
+    sign(locs$y) != sign(locs$y[loc])
     nn[idx] <- TRUE
+    # a location is not a neighbor of itself
     nn[loc] <- FALSE
+    # locations that are not on the same hemifield (superior or inferior)
+    # are not neigbhros
+    nn[sign(locs$y) != sign(locs$y[loc])] <- FALSE
     return(nn)
   }))
   return(nn)
@@ -498,9 +530,21 @@ setupNewLocs <- function(states, settings, loc) {
   for(loc in locs) {
     # select unfinished neighboring locations and
     # calculate average threshold of finished neighboring
-    th <- mean(sapply(which(settings$nn[loc,] & done), function(l) settings$finalf(states[[l]])))
-    # create PMF based on the average threshold
-    states[[loc]]$pdf <- makePMF(settings$domain, th)
+    est <- round(mean(sapply(which(settings$nn[loc,] & done), function(l) settings$finalf(states[[l]]))), 1)
+    # for ZEST, create PMF based on the inherited est
+    if(settings$algorithm == "ZEST")
+      states[[loc]]$pdf <- bimodal_pmf(settings$domain, est)
+    # for staircase or full threshold, starting estimate is inherited est
+    if(settings$algorithm == "staircase" | settings$algorithm == "FT")
+      states[[loc]]$startingEstimate <- est
+    # for MOCS, mid point of the MOCS algorithm is inherited est
+    if(settings$algorithm == "MOCS") {
+      pars <- MOCSpars(est, settings$domain, settings$algpar, settings$minstim)
+      states[[loc]]$domain <- pars$domain
+      states[[loc]]$estimate <- pars$guess
+      states[[loc]]$series <- pars$series
+      states[[loc]]$currentLevel <-pars$currentLevel
+    }
   }
   return(list(states = states, locs = locs))
 }

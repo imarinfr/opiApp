@@ -10,6 +10,7 @@ library(plotrix)
 library(txtq)
 library(future)
 library(promises)
+library(psyphy)
 # prepare to run processes in parallel
 plan(multisession, split = TRUE)
 # remove all threads at the end of all things

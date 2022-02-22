@@ -50,7 +50,7 @@ server <- future({
         locs <- grids[[pars$grid]]$locs
       msg <- tryCatch({
         setup <- testSetup(chooseOPI()[.OpiEnv$chooser], appParams, pars$eye, pars$perimetry,
-                              pars$algorithm, pars$val, pars$algval, locs)
+                              pars$algorithm, pars$val, pars$algpar, locs)
         states <- setup$states
         settings <- setup$settings
         if(!is.null(settings))

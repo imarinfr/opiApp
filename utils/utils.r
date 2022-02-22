@@ -312,16 +312,21 @@ resPlot <- function(res, locs, eye, foveadb, maxlum) {
   if(any(isna))  points(locs$x[isna], locs$y[isna], pch = 19, cex = ptcex, col = cols[locs$w[isna]])
   if(any(!isna)) text(locs$x[!isna], locs$y[!isna], locs$th[!isna], col = cols[locs$w[!isna]], font = 2)
 }
-falsePositivePars <- function(locs, eye) {
+falsePositivePars <- function(machine, perimetry, bglum, maxlum, locs, eye) {
+  if(perimetry == "luminance" &
+     (machine == "PhoneVR" | machine == "imo" | machine == "Compass"))
+    db <- cdTodb(bglum, maxlum)
+  else
+    db <- 50
   # generate an invisible stimulus
   loc <- sample(1:nrow(locs), 1)
   x <- ifelse(eye == "L", -locs$x[loc], locs$x[loc])
   y <- locs$y[loc]
-  return(data.frame(loc = loc, x = x, y = y, db = 50))
+  return(data.frame(loc = loc, x = x, y = y, db = db))
 }
 falseNegativePars <- function(locs, res, eye) {
   # keep only the dimmest stimulus and select one at random
-  res <- res[res$type == "N" & res$done, c("x", "y", "level")]
+  res <- res[res$type == "N" & res$done & res$seen, c("x", "y", "level")]
   if(nrow(res) == 0) return(NULL)
   ur <- unique(res[,c("x", "y")])
   for(i in 1:nrow(ur))
@@ -337,9 +342,9 @@ falseNegativePars <- function(locs, res, eye) {
 enableElements <- function(ids) lapply(ids, enable)
 disableElements <- function(ids) lapply(ids, disable)
 enableRunElements <- function()
-  enableElements(c("close", "fovea", "run", "eye", "grid", "perimetry", "algorithm", "val", "algval"))
+  enableElements(c("close", "fovea", "run", "eye", "grid", "perimetry", "algorithm", "val", "algpar"))
 disableRunElements <- function()
-  disableElements(c("close", "fovea", "run", "eye", "grid", "perimetry", "algorithm", "val", "algval", "save", "cancel"))
+  disableElements(c("close", "fovea", "run", "eye", "grid", "perimetry", "algorithm", "val", "algpar", "save", "cancel"))
 # patient's information to show: id, name, surname, age, gender
 parsePatientOutput <- function(patient) {
   if(is.na(patient$id)) {
@@ -436,11 +441,11 @@ renderResult <- function(trialRes, res, npoints) {
 }
 # prepare results to save
 prepareToSave <- function(patient, machine, perimetry, val, grid, eye,
-                          algorithm, algval, tdate, ttime, comments, res,
+                          algorithm, algpar, tdate, ttime, comments, res,
                           foveadb, locs) {
   dat <- data.frame(id = patient$id, eye = eye, date = tdate, time = ttime,
                     machine = machine, perimetry = perimetry, fixedParam = val,
-                    grid = grid, algorithm = algorithm, stopValue = algval,
+                    grid = grid, algorithm = algorithm, stopValue = algpar,
                     age = patient$age, type = patient$type,
                     fp = NA, fpt = NA, fpr = NA, fn = NA, fnt = NA, fnr = NA,
                     npres = NA, rt150 = NA, rt600 = NA, rtsd = NA, rtm = NA,
