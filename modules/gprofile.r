@@ -78,7 +78,7 @@ gprofile <- function(input, output, session) {
   }) %>% bindEvent(input$close, ignoreInit = TRUE)
   # select row
   observe({
-    if(opiInitialized() & (appParams$machine == "PhoneVR"))
+    if(opiInitialized())
       do.call(opiSetBackground, list(bgeye = "B", fixeye = "B", bglum = lutTable$pix[input$lut_select$select$r], bgcol = appParams$bgcol))
 
   }) %>% bindEvent(input$lut_select$select$r, ignoreInit = TRUE)
