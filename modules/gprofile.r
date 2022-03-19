@@ -1,6 +1,6 @@
 gprofileUI <- function(id) {
   ns <- NS(id)
-  opiImpl <- "PhoneVR"
+  opiImpl <- "PhoneHMD"
   tagList(
     fluidRow(
       column(3, selectInput(ns("machine"), "OPI implementation", choices = opiImpl, selected = opiImpl)),

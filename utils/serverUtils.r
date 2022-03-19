@@ -24,7 +24,7 @@ parseMessage <- function(msg, appParams) {
   }
   if(cmd == "opiSetBackground") {
     if(is.na(chooseOPI()[.OpiEnv$chooser])) return(NULL)
-    if(chooseOPI()[.OpiEnv$chooser] == "PhoneVR") {
+    if(chooseOPI()[.OpiEnv$chooser] == "PhoneHMD") {
       if(length(msg) != 4) return(NULL)
     } else if(length(msg) != 1) return(NULL)
     pars <- opiBackgroundParams(chooseOPI()[.OpiEnv$chooser], appParams, msg)
@@ -56,7 +56,7 @@ returnResults <- function(res)
                                      res$lum, res$size, res$col))
 opiInitParams <- function(msg, appParams) {
   pars <- opiGetParams("opiInitialize")
-  if(msg[2] == "PhoneVR") {
+  if(msg[2] == "PhoneHMD") {
     pars$ip <- appParams$ip
     pars$port <- appParams$port
     pars$lut <- appParams$lut
@@ -87,7 +87,7 @@ opiInitParams <- function(msg, appParams) {
 }
 opiBackgroundParams <- function(machine, appParams, msg) {
   pars <- opiGetParams("opiSetBackground")
-  if(machine == "PhoneVR") {
+  if(machine == "PhoneHMD") {
     pars$bglum <- appParams$bglum
     pars$bgcol <- appParams$bgcol
     pars$fixlum <- appParams$fixlum
@@ -135,7 +135,7 @@ testSetup <- function(machine, appParams, eye, perimetry, algorithm, val, algpar
   if(perimetry == "luminance") minval <- dbTocd(40) # cd/m2; set to HFA's 40 dB or 0.3183 cd/m2
   if(perimetry == "size") minval <- 0.05 # degrees; approx to Size I / 2.
   # min val gest rounded to the nearest dB integer that is greater than minval
-  if(machine == "PhoneVR" | machine == "imo" | machine == "Compass")
+  if(machine == "PhoneHMD" | machine == "imo" | machine == "Compass")
     minstim <- ceiling(cdTodb(appParams$bglum + minval, pars$maxval))
   else
     minstim <- ceiling(cdTodb(minval, pars$maxval))
@@ -282,7 +282,7 @@ testCatchTrial <- function(settings, pars) {
               lum = stimInfo$lum, size = stimInfo$size, col = stimInfo$col))
 }
 getStepStimInfo <- function(machine, stim) {
-  if(machine == "PhoneVR") {
+  if(machine == "PhoneHMD") {
     lum <- round(stim$lum)
     size <- stim$sx
     w <- stim$w
@@ -302,11 +302,11 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
   } else if(perimetry == "size") {
     maxval <- appParams$maxdiam
   } else makeStimHelper <- NULL
-  if(perimetry == "size" & (machine == "PhoneVR" | machine == "imo" | machine == "Compass"))
+  if(perimetry == "size" & (machine == "PhoneHMD" | machine == "imo" | machine == "Compass"))
     val <- appParams$bglum + val # luminance value for the size stimulus is above background
   pars <- list(eye = eye, val = val)
   if(perimetry == "luminance") {
-    if(machine == "PhoneVR") {
+    if(machine == "PhoneHMD") {
       makeStimHelper <- function(x, y, w) {  # returns a function of (db,n)
         ff <- function(db, n) db + n
         body(ff) <- substitute({
@@ -346,7 +346,7 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
       }
     } else makeStimHelper <- NULL
   } else if(perimetry == "size") {
-    if(machine == "PhoneVR") {
+    if(machine == "PhoneHMD") {
       makeStimHelper <- function(x, y, w) {  # returns a function of (db,n)
         ff <- function(db, n) db + n
         body(ff) <- substitute({

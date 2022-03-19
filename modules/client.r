@@ -1,6 +1,6 @@
 clientUI <- function(id) {
   ns <- NS(id)
-  opiImpl <- c("PhoneVR", "Compass", "imo", "Octopus900", "SimHenson", "SimYes", "SimNo")
+  opiImpl <- c("PhoneHMD", "Compass", "imo", "Octopus900", "SimHenson", "SimYes", "SimNo")
   gridNames <- names(grids)
   names(gridNames) <- unname(sapply(grids, function(gg) return(gg$name)))
   algorithms <- list("ZEST" = "ZEST", "Full Threshold" = "FT",
@@ -142,7 +142,7 @@ client <- function(input, output, session) {
       updateRadioButtons(session, "perimetry", selected = "luminance")
       disable("perimetry")
     } else enable("perimetry")
-    if(input$machine == "PhoneVR") # only PhoneVR can test both eyes
+    if(input$machine == "PhoneHMD") # only PhoneHMD can test both eyes
       updateSelectInput(session, "eye", choices = list(Right = "R", Left = "L", Both = "B"),
                         selected = input$eye)
     else {
@@ -223,7 +223,7 @@ client <- function(input, output, session) {
   }) %>% bindEvent(input$close, ignoreInit = TRUE)
   # test fovea
   observe({
-    if(input$machine == "PhoneVR")
+    if(input$machine == "PhoneHMD")
       statement <- "opiSetBackground B B annulus"
     else
       statement <- "opiSetBackground"
@@ -258,7 +258,7 @@ client <- function(input, output, session) {
       running <<- TRUE
     } else {
       msg(errortxt(msgtxt$message))
-      if(input$machine == "PhoneVR")
+      if(input$machine == "PhoneHMD")
         statement <- "opiSetBackground B none"
       else
         statement <- "opiSetBackground"
@@ -270,7 +270,7 @@ client <- function(input, output, session) {
     Sys.sleep(0.5)
   }) %>% bindEvent(input$foveaOK, ignoreInit = TRUE)
   observe({
-    if(input$machine == "PhoneVR")
+    if(input$machine == "PhoneHMD")
       statement <- "opiSetBackground B none"
     else
       statement <- "opiSetBackground"
@@ -286,7 +286,7 @@ client <- function(input, output, session) {
   }) %>% bindEvent(input$foveaCancel, ignoreInit = TRUE)
   # start or continue test
   observe({
-    if(input$machine == "PhoneVR")
+    if(input$machine == "PhoneHMD")
       statement <- paste("opiSetBackground B B", appParams$fixtype)
     else
       statement <- "opiSetBackground"

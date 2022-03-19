@@ -314,7 +314,7 @@ resPlot <- function(res, locs, eye, foveadb, maxlum) {
 }
 falsePositivePars <- function(machine, perimetry, bglum, maxlum, locs, eye) {
   if(perimetry == "luminance" &
-     (machine == "PhoneVR" | machine == "imo" | machine == "Compass"))
+     (machine == "PhoneHMD" | machine == "imo" | machine == "Compass"))
     db <- cdTodb(bglum, maxlum)
   else
     db <- 50

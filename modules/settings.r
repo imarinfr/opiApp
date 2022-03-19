@@ -1,6 +1,6 @@
 settingsUI <- function(id) {
   ns <- NS(id)
-  opiImpl <- c("PhoneVR", "Compass", "imo", "Octopus900", "SimHenson", "SimYes", "SimNo")
+  opiImpl <- c("PhoneHMD", "Compass", "imo", "Octopus900", "SimHenson", "SimYes", "SimNo")
   # init gamma file choices and selection
   choices  <- names(gammaf)
   if(length(choices) == 0) choices  <- "-"
@@ -92,7 +92,7 @@ settings <- function(input, output, session) {
   # check if input OK or not
   observe({
     disableAllConfigFields()
-    if(appParams$machine == "PhoneVR") {
+    if(appParams$machine == "PhoneHMD") {
       enableConfigFields(c("device", "ip", "port", "gammaf",
                            "pars", "stcol", "bglum", "bgcol", "fixtype", "fixlum", "fixcol"))
     }
