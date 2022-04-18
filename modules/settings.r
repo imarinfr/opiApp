@@ -103,7 +103,7 @@ settings <- function(input, output, session) {
       enableConfigFields(c("device", "ip", "port"))
     }
     if(appParams$machine == "Octopus900") {
-      enableConfigFields(c("device", "port", "O900path", "O900max", "O900wheel"))
+      enableConfigFields(c("device", "ip", "port", "O900path", "O900max", "O900wheel"))
     }
   }) %>% bindEvent(settingsChanged())
   # save default values
