@@ -115,7 +115,7 @@ server <- future({
     # OPI Close
     ###########
     if(cmd == "opiClose") {
-      opiClose()
+      try(opiClose(), silent = TRUE)
       ShinyReceiver$push("OK", "OPI server: OPI closed")
       break
     }

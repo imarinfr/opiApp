@@ -204,6 +204,9 @@ client <- function(input, output, session) {
       enableElements(c("fovea", "close", "run"))
       msg(msgtxt$message)
     } else {
+      ShinySender$push(title = "CMD", message = "opiClose")
+      while(ShinyReceiver$empty()) Sys.sleep(0.1)
+      opiInitialized(FALSE)
       enableElements(c("machine", "init"))
       msg(errortxt(msgtxt$message))
     }

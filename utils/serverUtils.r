@@ -17,8 +17,8 @@ parseMessage <- function(msg, appParams) {
     return(NULL)
   if(cmd == "opiInit") {
     if(length(msg) < 2) return(NULL)
-    if(msg[2] == "Octopus900" & length(msg) != 3) return(NULL)
-    if(length(msg) != 2) return(NULL)
+    if(msg[2] == "Octopus900" && length(msg) != 3) return(NULL)
+    if(msg[2] != "Octopus900" && length(msg) != 2) return(NULL)
     if(!chooseOPI(msg[2])) return(NULL)
     pars <- opiInitParams(msg, appParams)
   }
@@ -70,6 +70,7 @@ opiInitParams <- function(msg, appParams) {
     pars$port <- appParams$port
   }
   if(msg[2] == "Octopus900") {
+    print("Octopus parameters")
     pars$serverPort <- appParams$port
     pars$eyeSuiteSettingsLocation <- appParams$O900path
     pars$bigWheel <- appParams$O900wheel
