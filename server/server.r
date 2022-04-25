@@ -25,10 +25,10 @@ server <- future({
     ################
     if(cmd == "opiInit") {
       res <- tryCatch(do.call(what = opiInitialize, args = pars), error = function(e) e$message)
-      if(is.null(res) || is.null(res$err))
-        ShinyReceiver$push("OK", paste0("OPI server: OPI initialized for '", chooseOPI()[.OpiEnv$chooser], "'"))
-      else
+      if(!is.null(res) || !is.null(res$err))
         ShinyReceiver$push("ERR", paste("OPI server:", res))
+      else
+        ShinyReceiver$push("OK", paste0("OPI server: OPI initialized for '", chooseOPI()[.OpiEnv$chooser], "'"))
     }
     ####################
     # OPI Set Background
