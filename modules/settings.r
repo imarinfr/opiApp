@@ -47,8 +47,8 @@ settingsUI <- function(id) {
     ),
     htmlOutput(ns("specific")),
     fluidRow(
-      column(3, numericInput(ns("lumForSize"), "Fixed size for luminance perimetry", appParams$lumForSize)),
-      column(3, numericInput(ns("sizeForLum"), "Fixed luminance for size perimetry", appParams$sizeForLum)),
+      column(3, numericInput(ns("lumForSize"), "Fixed lum for size perimetry", appParams$lumForSize)),
+      column(3, numericInput(ns("sizeForLum"), "Fixed size for lum perimetry", appParams$sizeForLum)),
       column(2, numericInput(ns("est"), "Initial estimate", appParams$est)),
       column(2, numericInput(ns("estSD"), "maximum SD (ZEST)", appParams$estSD)),
       column(2, numericInput(ns("nreps"), "Repetitions (MOCS)", appParams$nreps))
@@ -89,23 +89,6 @@ settings <- function(input, output, session) {
   observe({
     appParams$O900max <<- as.logical(input$O900max)
   }) %>% bindEvent(input$O900max)
-  # check if input OK or not
-  observe({
-    disableAllConfigFields()
-    if(appParams$machine == "PhoneHMD") {
-      enableConfigFields(c("device", "ip", "port", "gammaf",
-                           "pars", "stcol", "bglum", "bgcol", "fixtype", "fixlum", "fixcol"))
-    }
-    if(appParams$machine == "Compass") {
-      enableConfigFields(c("device", "ip", "port"))
-    }
-    if(appParams$machine == "imo") {
-      enableConfigFields(c("device", "ip", "port"))
-    }
-    if(appParams$machine == "Octopus900") {
-      enableConfigFields(c("device", "port", "O900path", "O900max", "O900wheel"))
-    }
-  }) %>% bindEvent(settingsChanged())
   # save default values
   observe({
     save(appParams, file = "config/appParams.rda")
@@ -151,10 +134,3 @@ populateDefaults <- function(session) {
   updateRadioButtons(session, "O900wheel", selected = appParams$O900wheel)
   updateRadioButtons(session, "O900max", selected = appParams$O900max)
 }
-
-enableConfigFields <- function(fields)
-  lapply(fields, enable)
-
-disableAllConfigFields <- function()
-  lapply(c("config", "ip", "port", "gammaf", "O900path", "O900max", "O900wheel",
-           "pars", "stcol", "bglum", "bgcol", "fixtype", "fixlum", "fixcol"), disable)
