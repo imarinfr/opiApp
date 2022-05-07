@@ -333,12 +333,38 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
         }, list(x = x, y = y, w = w))
         return(ff)
       }
-    } else if(machine == "Compass" | machine == "Octopus900" | substr(machine, 1, 3) == "Sim") {
+    } else if(machine == "Compass") {
       makeStimHelper <- function(x, y, w) {  # returns a function of (db,n)
         ff <- function(db, n) db + n
         body(ff) <- substitute({
           s <- list(x = x, y = y,
-                    size = pars$val, level = dbTocd(db, maxval),
+                    size = pars$val, level = dbTocd(db, .OpiEnv$Compass$ZERO_DB_IN_ASB / pi),
+                    duration = appParams$presTime, responseWindow = w)
+          class(s) <- "opiStaticStimulus"
+          return(s)
+        }, list(x = x, y = y, w = w))
+        return(ff)
+      }
+    } else if(machine == "Octopus900") {
+      if(appParams$O900max) level <- dbTocd(db, 10000 / pi)
+      else level <- dbTocd(db, 4000 / pi)
+      makeStimHelper <- function(x, y, w) {  # returns a function of (db,n)
+        ff <- function(db, n) db + n
+        body(ff) <- substitute({
+          s <- list(x = x, y = y,
+                    size = pars$val, level = level,
+                    duration = appParams$presTime, responseWindow = w)
+          class(s) <- "opiStaticStimulus"
+          return(s)
+        }, list(x = x, y = y, w = w))
+        return(ff)
+      }
+    } else if(substr(machine, 1, 3) == "Sim") {
+      makeStimHelper <- function(x, y, w) {  # returns a function of (db,n)
+        ff <- function(db, n) db + n
+        body(ff) <- substitute({
+          s <- list(x = x, y = y,
+                    size = pars$val, level = dbTocd(db, 10000 / pi),
                     duration = appParams$presTime, responseWindow = w)
           class(s) <- "opiStaticStimulus"
           return(s)
@@ -355,30 +381,6 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
                     x = ifelse(pars$eye == "L", -x, x), y = y,
                     sx = dbTocd(db, maxval), sy = dbTocd(db, maxval), lum = pars$val,
                     col = appParams$stcol, d = appParams$presTime, w = w)
-          return(s)
-        }, list(x = x, y = y, w = w))
-        return(ff)
-      }
-    } else if(machine == "imo") {
-      makeStimHelper <- function(x, y, w) {  # returns a function of (db,n)
-        ff <- function(db, n) db + n
-        body(ff) <- substitute({
-          s <- list(eye = pars$eye, x = x, y = y,
-                    level = pars$val, size = dbTocd(db, maxval),
-                    duration = appParams$presTime, responseWindow = w)
-          class(s) <- "opiStaticStimulus"
-          return(s)
-        }, list(x = x, y = y, w = w))
-        return(ff)
-      }
-    } else if(machine == "Compass" | machine == "Octopus900" | substr(machine, 1, 3) == "Sim") {
-      makeStimHelper <- function(x, y, w) {  # returns a function of (db,n)
-        ff <- function(db, n) db + n
-        body(ff) <- substitute({
-          s <- list(x = x, y = y,
-                    level = pars$val, size = dbTocd(db, maxval),
-                    duration = appParams$presTime, responseWindow = w)
-          class(s) <- "opiStaticStimulus"
           return(s)
         }, list(x = x, y = y, w = w))
         return(ff)

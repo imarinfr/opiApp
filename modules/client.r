@@ -75,7 +75,7 @@ client <- function(input, output, session) {
   #########
   output$patient <- renderUI(parsePatientOutput(patient()))
   output$msgconn <- renderText(msg())
-  output$plotres <- renderPlot(resPlot(resTrial(), locs, input$eye, foveadb, appParams$maxlum))
+  output$plotres <- renderPlot(resPlot(resTrial(), locs, input$eye, foveadb, maxlum))
   output$textres <- renderUI(renderResult(resTrial(), res, nrow(locs)))
   ##############
   # main control
@@ -149,6 +149,14 @@ client <- function(input, output, session) {
       updateSelectInput(session, "eye", choices = list(Right = "R", Left = "L"),
                         selected = ifelse(input$eye == "B", "R", input$eye))
     }
+    maxlum <- NULL
+    if(input$machine == "Octopus900") {
+      if(input$O900max) maxlum <<- 10000 / pi
+      else maxlum <<- 4000 / pi
+    } else if(input$machine == "Compass" | substr(input$machine, 1, 3) == "Sim")
+      maxlum <<- 10000 / pi
+    else
+      maxlum <<- appParams$maxlum
     msg(paste0("'", input$machine, "' implementation selected. Press 'OPI initialize' to start"))
   }) %>% bindEvent(input$machine)
   # if perimetry type changes
@@ -361,8 +369,7 @@ client <- function(input, output, session) {
       ShinySender$push(title = "opiStatement", message = "opiTestStepRun")
     }
     if(type == "FP") {
-      pars <- falsePositivePars(input$machine, input$perimetry, appParams$bglum,
-                                appParams$maxlum, locs, input$eye)
+      pars <- falsePositivePars(input$machine, input$perimetry, appParams$bglum, maxlum, locs, input$eye)
       statement <- paste("opiTestCatchTrial", pars$loc, pars$x, pars$y, pars$db)
       ShinySender$push(title = "opiStatement", message = statement)
     }
