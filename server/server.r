@@ -89,12 +89,12 @@ server <- future({
     if(cmd == "opiTestCatchTrial") {
       res <- tryCatch({
         # present catch trial
-        res <- testCatchTrial(settings, pars)
+        catch <- testCatchTrial(settings, pars)
         NULL
       }, error = function(e) e$message)
       if(is.null(res)) { # if all good, inform, then send results
         ShinyReceiver$push("OK", "OPI server: catch trial successful")
-        res <- tryCatch(returnResults(res), error = function(e) e$message)
+        res <- tryCatch(returnResults(catch), error = function(e) e$message)
       }
       else
         ShinyReceiver$push("ERR", paste("OPI server:", res))

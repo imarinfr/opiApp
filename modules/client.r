@@ -398,7 +398,7 @@ client <- function(input, output, session) {
       received <- strsplit(ShinyReceiver$pop()$message, split = " ")[[1]]
       if(length(received) == 12)
         resReceived <- parseResults(received, type)
-      else msg(errortxt("Wrong number of parameters"))
+      else msg(errortxt("Wrong number of parameters received"))
       if(!is.null(resReceived)) {
         res <<- rbind(res, resReceived)
         if(type == "F") # update results
