@@ -133,10 +133,10 @@ testSetup <- function(machine, appParams, eye, perimetry, algorithm, val, algpar
   # get the rest of algorithm-dependent parameters
   settings <- NULL
   states <- NULL
-  if(perimetry == "luminance") minval <- dbTocd(40) # cd/m2; set to HFA's 40 dB or 0.3183 cd/m2
+  if(perimetry == "luminance") minval <- dbTocd(50) # cd/m2; set to HFA's 50 dB or 0.0318 cd/m2
   if(perimetry == "size") minval <- 0.05 # degrees; approx to Size I / 2.
-  # min val gest rounded to the nearest dB integer that is greater than minval
-  if(machine == "PhoneHMD" | machine == "imo" | machine == "Compass")
+  # min val gets rounded to the nearest dB integer that is greater than minval
+  if(machine == "PhoneHMD")
     minstim <- ceiling(cdTodb(appParams$bglum + minval, pars$maxval))
   else
     minstim <- ceiling(cdTodb(minval, pars$maxval))
@@ -220,8 +220,7 @@ testStep <- function(states, settings) {
   # update the makeStim with the most current response time
   states[[loc]]$makeStim <- settings$makeStimHelper(settings$x[loc], settings$y[loc], settings$respWin)
   # present stimulus and obtain response
-  sr <- tryCatch(settings$stepf(states[[loc]]),
-           error = function(e) NULL)
+  sr <- tryCatch(settings$stepf(states[[loc]]), error = function(e) NULL)
   if(is.null(sr)) return(NULL)
   if(sr$resp$seen & # simulate random response time
      substr(settings$machine, 1, 3) == "Sim")
@@ -233,6 +232,7 @@ testStep <- function(states, settings) {
     settings$unfinished <- settings$unfinished[-which(settings$unfinished == loc)]
     # update states and add the new locations for testing
     nl <- setupNewLocs(states, settings, loc)
+    browser()
     if(!is.null(nl)) {
       states <- nl$states
       settings$unfinished <- sort(c(settings$unfinished, nl$locs))
