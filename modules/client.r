@@ -70,6 +70,7 @@ client <- function(input, output, session) {
   locs <- NULL
   # define routine to initialized all run control variables
   tp0 <- tt <- tp <- tt0 <- NULL
+  maxlum <- NULL
   #########
   # Outputs
   #########
@@ -149,7 +150,6 @@ client <- function(input, output, session) {
       updateSelectInput(session, "eye", choices = list(Right = "R", Left = "L"),
                         selected = ifelse(input$eye == "B", "R", input$eye))
     }
-    maxlum <- NULL
     if(input$machine == "Octopus900") {
       if(input$O900max) maxlum <<- 10000 / pi
       else maxlum <<- 4000 / pi
@@ -407,6 +407,7 @@ client <- function(input, output, session) {
         resReceived <- parseResults(received, type)
       else msg(errortxt("Wrong number of parameters received"))
       if(!is.null(resReceived)) {
+        print(resReceived$level)
         res <<- rbind(res, resReceived)
         if(type == "F") # update results
           foveadb <<- resReceived$th

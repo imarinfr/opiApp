@@ -65,7 +65,7 @@ ui <- dashboardPage(
 )
 
 server <- function(input, output, session) {
-  invisible(chooseOpi("Daydream")) # choose the Daydream as the OPI implementation
+  invisible(chooseOpi("PhoneHMD")) # choose the Daydream as the OPI implementation
   # render all pages
   settingsPage <- renderUI({settingsUI("settings")})
   gprofilePage <- renderUI({gprofileUI("gprofile")})

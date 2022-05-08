@@ -133,58 +133,121 @@ testSetup <- function(machine, appParams, eye, perimetry, algorithm, val, algpar
   # get the rest of algorithm-dependent parameters
   settings <- NULL
   states <- NULL
-  if(perimetry == "luminance") minval <- dbTocd(50) # cd/m2; set to HFA's 50 dB or 0.0318 cd/m2
-  if(perimetry == "size") minval <- 0.05 # degrees; approx to Size I / 2.
-  # min val gets rounded to the nearest dB integer that is greater than minval
-  if(machine == "PhoneHMD")
+  if(machine == "PhoneHMD") return(setupPhoneHMD(machine, appParams, perimetry, algorithm, pars, algpar, locs))
+  if(machine == "Compass") return(setupCompass(machine, appParams, perimetry, algorithm, pars, algpar, locs))
+  if(machine == "Octopus900") return(setupOctopus(machine, appParams, perimetry, algorithm, pars, algpar, locs))
+  if(machine == "imo") return(setupIMO(machine, appParams, perimetry, algorithm, pars, algpar, locs))
+  if(substr(machine, 1, 3) == "Sim") return(setupSimulation(machine, appParams, perimetry, algorithm, pars, algpar, locs))
+}
+# set up for PhoneHMD
+setupPhoneHMD <- function(machine, appParams, perimetry, algorithm, pars, algpar, locs) {
+  if(perimetry == "luminance") {
+    minval <- 0.05 # min incremental value to present. Corresponds to about 48 HFA dB
     minstim <- ceiling(cdTodb(appParams$bglum + minval, pars$maxval))
-  else
+  }
+  if(perimetry == "size") {
+    minval <- 0.05 # degrees; approx to Size I / 2.
     minstim <- ceiling(cdTodb(minval, pars$maxval))
-  # domain is different for ZEST than for the rest
+  }
+  st <- initStates(algorithm, minstim, pars$maxval, appParams$dbstep, algpar)
+  settings <- initSettings(machine, algorithm, perimetry, pars$makeStimHelper, st$domain,
+                           minstim, appParams$maxval, algpar, locs, appParams)
+  return(list(states = st$states, settings = settings))
+}
+# set up for Compass
+setupCompass <- function(machine, appParams, perimetry, algorithm, pars, algpar, locs) {
+  maxlum <- 10000 / pi
+  minstim <- 50
+  st <- initStates(algorithm, minstim, maxlum, 1, algpar)
+  settings <- initSettings(machine, algorithm, perimetry, pars$makeStimHelper, st$domain,
+                           minstim, maxlum, algpar, locs, appParams)
+  return(list(states = st$states, settings = settings))
+}
+# set up Octopus
+setupOctopus <- function(machine, appParams, perimetry, algorithm, pars, algpar, locs) {
+  if(appParams$O900max) maxlum <- 10000 / pi
+  else maxlum <- 4000 / pi
+  minstim <- 50
+  st <- initStates(algorithm, minstim, maxlum, 1, algpar)
+  settings <- initSettings(machine, algorithm, perimetry, pars$makeStimHelper, st$domain,
+                           minstim, maxlum, algpar, locs, appParams)
+  return(list(states = st$states, settings = settings))
+}
+# set up IMO
+setupIMO <- function(machine, appParams, perimetry, algorithm, pars, algpar, locs) {
+  maxlum <- 10000 / pi
+  minstim <- 50
+  st <- initStates(algorithm, minstim, maxlum, 1, algpar)
+  settings <- initSettings(machine, algorithm, perimetry, pars$makeStimHelper, st$domain,
+                           minstim, maxlum, algpar, locs, appParams)
+  return(list(states = st$states, settings = settings))
+}
+# set up Simulation
+setupSimulation <- function(machine, appParams, perimetry, algorithm, pars, algpar, locs) {
+  maxlum <- 10000 / pi
+  minstim <- 40
+  st <- initStates(algorithm, minstim, maxlum, 1, algpar)
+  settings <- initSettings(machine, algorithm, perimetry, pars$makeStimHelper, st$domain,
+                           minstim, maxlum, algpar, locs, appParams)
+  return(list(states = st$states, settings = settings))
+}
+# create states and settings
+initStates <- function(algorithm, minstim, maxval, dbstep, algpar) {
+  states <- NULL
   if(algorithm == "ZEST") {
     # add offset to the domain
     offset <- 5
     # the equivalent to 30 dB HFA
-    guess <- ceiling(cdTodb(dbTocd(30), pars$maxval))
-    domain <- seq(-offset, minstim + offset, by = appParams$dbstep)
-  } else if(algorithm == "MOCS") {
-    # add n levels around the initial guess (at 0 in the domain) separated by dbstep
-    nlevels <- 3
-    # the equivalent to 30 dB HFA
-    guess <- ceiling(cdTodb(dbTocd(30), pars$maxval))
-    domain <- seq(-nlevels, nlevels, by = appParams$dbstep)
-  } else
-    domain <- seq(0, minstim, by = appParams$dbstep)
-  if(algorithm == "ZEST") {
+    guess <- cdTodb(dbTocd(30), maxval)
+    domain <- seq(-offset, minstim + offset, by = dbstep)
     # we do not pass the makeStim here, but generate one at every iteration to be
     # able to modify the response window
     for(i in 1:nrow(locs))
       states[[i]] <- ZEST.start(domain = domain,
-                                prior = bimodal_pmf(domain, guess),
+                                prior = bimodal_pmf(domain, guess, dbstep),
                                 stopType = "S", stopValue = algpar,
                                 minStimulus = 0, maxStimulus = minstim,
                                 makeStim = NULL)
+  } else if(algorithm == "MOCS") {
+    # add n levels around the initial guess (at 0 in the domain) separated by dbstep
+    nlevels <- 3
+    # the equivalent to 30 dB HFA
+    guess <- ceiling(cdTodb(dbTocd(30), maxval))
+    domain <- seq(-nlevels, nlevels, by = dbstep)
+    for(i in 1:nrow(locs))
+      states[[i]] <- MOCS.start(guess, domain, algpar, minstim)
+  } else {
+    domain <- seq(0, minstim, by = dbstep)
+    if(algorithm == "FT") {
+      for(i in 1:nrow(locs))
+        states[[i]] <- FT.start(est = algpar, instRange = c(0, minstim), makeStim = NULL)
+    } else if(algorithm == "staircase") {
+      for(i in 1:nrow(locs))
+        states[[i]] <- fourTwo.start(est = algpar, instRange = c(0, minstim), makeStim = NULL)
+    }
+  }
+  return(list(domain = domain, states = states))
+}
+# create states and settings
+initSettings <- function(machine, algorithm, perimetry, makeStimHelper, domain,
+                         minstim, maxval, algpar, locs, appParams) {
+  settings <- NULL
+  if(algorithm == "ZEST") {
     settings$stepf <- ZEST.step
     settings$stopf <- ZEST.stop
     settings$finalf <- ZEST.final
+  } else if(algorithm == "MOCS") {
+    settings$stepf <- MOCS.step
+    settings$stopf <- MOCS.stop
+    settings$finalf <- MOCS.final
   } else if(algorithm == "FT") {
-    for(i in 1:nrow(locs))
-      states[[i]] <- FT.start(est = algpar, instRange = c(0, minstim), makeStim = NULL)
     settings$stepf <- FT.step
     settings$stopf <- FT.stop
     settings$finalf <- FT.final2
   } else if(algorithm == "staircase") {
-    for(i in 1:nrow(locs))
-      states[[i]] <- fourTwo.start(est = algpar, instRange = c(0, minstim), makeStim = NULL)
     settings$stepf <- fourTwo.step
     settings$stopf <- fourTwo.stop
-    settings$finalf <- fourTwo.final2 # we use a different one to return any value at all
-  } else if(algorithm == "MOCS") {
-    for(i in 1:nrow(locs))
-      states[[i]] <- MOCS.start(guess, domain, algpar, minstim)
-    settings$stepf <- MOCS.step
-    settings$stopf <- MOCS.stop
-    settings$finalf <- MOCS.final
+    settings$finalf <- fourTwo.final2
   }
   if(!is.null(settings)) {
     settings$machine <- machine
@@ -195,11 +258,12 @@ testSetup <- function(machine, appParams, eye, perimetry, algorithm, val, algpar
     settings$w <- locs$w
     settings$unfinished <- which(settings$w == 1)
     # make stimulus helper, locations waves, initial locations, and response window
-    settings$makeStimHelper <- pars$makeStimHelper
+    settings$makeStimHelper <- makeStimHelper
     settings$domain <- domain
+    settings$maxval <- maxval
     settings$minstim <- minstim
-    settings$maxval <- pars$maxval
-    settings$maxstim <- pars$maxstim
+    settings$maxstim <- 0
+    settings$dbstep <- appParams$dbstep
     settings$algpar <- algpar
     settings$nn <- findNeighbors(locs)
     settings$respWin <- appParams$respWin
@@ -208,7 +272,7 @@ testSetup <- function(machine, appParams, eye, perimetry, algorithm, val, algpar
     settings$minISI <- appParams$minISI
     settings$movingResp <- rep(appParams$respWin, appParams$slidWidth)
   }
-  return(list(states = states, settings = settings))
+  return(settings)
 }
 # process test step
 testStep <- function(states, settings) {
@@ -232,7 +296,6 @@ testStep <- function(states, settings) {
     settings$unfinished <- settings$unfinished[-which(settings$unfinished == loc)]
     # update states and add the new locations for testing
     nl <- setupNewLocs(states, settings, loc)
-    browser()
     if(!is.null(nl)) {
       states <- nl$states
       settings$unfinished <- sort(c(settings$unfinished, nl$locs))
@@ -263,7 +326,7 @@ testStep <- function(states, settings) {
                          time = sr$resp$time,
                          respWin = settings$respWin,
                          done = done,
-                         th = round(th),
+                         th = round(th, 1),
                          lum = stimInfo$lum, size = stimInfo$size, col = stimInfo$col)))
 }
 testCatchTrial <- function(settings, pars) {
@@ -303,7 +366,7 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
   } else if(perimetry == "size") {
     maxval <- appParams$maxdiam
   } else makeStimHelper <- NULL
-  if(perimetry == "size" & (machine == "PhoneHMD" | machine == "imo" | machine == "Compass"))
+  if(perimetry == "size" & machine == "PhoneHMD")
     val <- appParams$bglum + val # luminance value for the size stimulus is above background
   pars <- list(eye = eye, val = val)
   if(perimetry == "luminance") {
@@ -479,25 +542,26 @@ MOCSpars <- function(guess, domain, nreps, minstim) {
               currentLevel = currentLevel))
 }
 # PMF for healthy subjects
-healthy_pmf <- function(domain, guess) {
-  pmfh <- data.frame(db=c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
-                     p=c(0.03, 0.05, 0.1, 0.2, 0.3, 0.2, 0.05, 0.025, 0.01))
+healthy_pmf <- function(domain, guess, dbstep) {
+  pmfh <- data.frame(db = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
+                     p = c(0.03, 0.05, 0.1, 0.2, 0.3, 0.2, 0.05, 0.025, 0.01))
   pmfh$db <- pmfh$db + guess
-  pmf <- rep(0, length(domain))
-  pmf[which(domain %in% pmfh$db)] <- pmfh$p
+  pmf <- approx(pmfh$db, pmfh$p, domain, yleft = 0, yright = 0)$y
   return(pmf / sum(pmf))
 }
 # PMF for glaucoma patients
-glaucoma_pmf <- function(domain) {
-  pmfg <- data.frame(db=c(-1, 0, 1, 2, 3, 4),
-                     p=c(0.2, 0.3, 0.2, 0.15, 0.1, 0.02))
-  pmf <- rep(0, length(domain))
-  pmf[which(domain %in% pmfg$db)] <- pmfg$p
+glaucoma_pmf <- function(domain, dbstep) {
+  pmfg <- data.frame(db = c(-1, 0, 1, 2, 3, 4),
+                     p = c(0.2, 0.3, 0.2, 0.15, 0.1, 0.02))
+  pmf <- approx(pmfg$db, pmfg$p, domain, yleft = 0, yright = 0)$y
   return(pmf / sum(pmf))
 }
 # bimodal PMF prior
-bimodal_pmf <- function(domain, guess, weight = 4) {
-  pmfb <- healthy_pmf(domain, guess) * weight + glaucoma_pmf(domain)
+bimodal_pmf <- function(domain, guess, dbstep, weight = 4) {
+  if(guess %% dbstep < dbstep / 2) {
+    guess <- guess - guess %% dbstep
+  } else guess <- guess + dbstep - guess %% dbstep
+  pmfb <- healthy_pmf(domain, guess, dbstep) * weight + glaucoma_pmf(domain, dbstep)
   pmfb[which(pmfb == 0)] <- 0.001
   return(pmfb / sum(pmfb))
 }
@@ -533,10 +597,12 @@ setupNewLocs <- function(states, settings, loc) {
   for(loc in locs) {
     # select unfinished neighboring locations and
     # calculate average threshold of finished neighboring
-    est <- round(mean(sapply(which(settings$nn[loc,] & done), function(l) settings$finalf(states[[l]]))), 1)
+    est <- mean(sapply(which(settings$nn[loc,] & done), function(l) settings$finalf(states[[l]])))
+    if(est < settings$maxstim) est <- settings$maxstim
+    if(est > settings$minstim) est <- settings$minstim
     # for ZEST, create PMF based on the inherited est
     if(settings$algorithm == "ZEST")
-      states[[loc]]$pdf <- bimodal_pmf(settings$domain, est)
+      states[[loc]]$pdf <- bimodal_pmf(settings$domain, est, settings$dbstep)
     # for staircase or full threshold, starting estimate is inherited est
     if(settings$algorithm == "staircase" | settings$algorithm == "FT")
       states[[loc]]$startingEstimate <- est

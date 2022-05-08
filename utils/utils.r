@@ -12,10 +12,10 @@ errorMessage <- function(txt) {
 }
 # template of the plot to show
 templatePlot <- function(locs, eye, expf = 1.05, lty = 1, lwd = 1,
-                         bg = "white", linCol = "lightgray",
-                         ellipseColor = "gray92") {
+                         bg = "white", ps = 9, linCol = "lightgray",
+                         ellipseColor = "gray92", new = FALSE) {
   rad <- 1.5
-  par(mar = c(0, 0, 0, 0), bg = bg)
+  par(mar = c(0, 0, 0, 0), bg = bg, ps = ps, new = new)
   if(eye == "L") x <- -15
   else x <- 15
   xlim <- c(-30, 30)
@@ -133,7 +133,7 @@ fillPtsTable <- function(locs, readOnly = FALSE) {
 }
 # show grid points
 showGrid <- function(locs) {
-  templatePlot(locs, "R")
+  templatePlot(locs = locs, eye = "R")
   if(!all(is.na(locs))) {
     cols <- brewer.pal(8, "Dark2")[1:max(locs$w, na.rm = TRUE)]
     cols[1] <- "#000000"
@@ -477,9 +477,9 @@ prepareToSave <- function(patient, machine, perimetry, val, grid, eye,
 # Routines for report
 #####################
 # show plot
-showPlot <- function(locs, eye, foveadb) {
+showPlot <- function(locs, eye, foveadb, ps = 9, new = FALSE) {
   if(is.null(locs)) return(NULL)
-  templatePlot(locs, eye)
+  templatePlot(locs = locs, eye = eye, ps = ps, new = new)
   alpha <- "AA"
   # unfinished symbols are presented in gray, finished symbols in black
   cols <- brewer.pal(8, "Dark2")[1:max(locs$w, na.rm = TRUE)]
@@ -604,11 +604,10 @@ savePDF <- function(fname, record, locs, res, eye, foveadb) {
   width  <- 6
   height <- 2.5
   pdf(file = fname, width = width, height = height)
-  par(mar = c(0, 0, 0, 0), ps = 8)
   scrlist <- mountlayout()
   # plot
   screen(scrlist$plot)
-  showPlot(locs, eye, foveadb)
+  showPlot(locs, eye, foveadb, 6, new = TRUE)
   # info
   screen(scrlist$info)
   dat <- parsetxt(generateReport(record, res, nrow(locs)))
