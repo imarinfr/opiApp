@@ -313,8 +313,7 @@ resPlot <- function(res, locs, eye, foveadb, maxlum) {
   if(any(!isna)) text(locs$x[!isna], locs$y[!isna], locs$th[!isna], col = cols[locs$w[!isna]], font = 2)
 }
 falsePositivePars <- function(machine, perimetry, bglum, maxlum, locs, eye) {
-  if(perimetry == "luminance" &
-     (machine == "PhoneHMD" | machine == "imo" | machine == "Compass"))
+  if(perimetry == "luminance" & machine == "PhoneHMD")
     db <- cdTodb(bglum, maxlum)
   else
     db <- 50
