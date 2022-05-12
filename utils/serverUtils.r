@@ -24,10 +24,11 @@ parseMessage <- function(msg, appParams) {
   }
   if(cmd == "opiSetBackground") {
     if(is.na(chooseOPI()[.OpiEnv$chooser])) return(NULL)
-    if(chooseOPI()[.OpiEnv$chooser] == "PhoneHMD") {
-      if(length(msg) != 4) return(NULL)
-    } else if(length(msg) != 1) return(NULL)
-    pars <- opiBackgroundParams(chooseOPI()[.OpiEnv$chooser], appParams, msg)
+    if((chooseOPI()[.OpiEnv$chooser] == "PhoneHMD" & length(msg) == 4) ||
+       (chooseOPI()[.OpiEnv$chooser] == "Octopus900" & length(msg) == 2) ||
+       length(msg) == 1)
+      pars <- opiBackgroundParams(chooseOPI()[.OpiEnv$chooser], appParams, msg)
+    else return(NULL)
   }
   if(cmd == "opiTestInit") {
     if(length(msg) != 7) return(NULL)
@@ -70,12 +71,11 @@ opiInitParams <- function(msg, appParams) {
     pars$port <- appParams$port
   }
   if(msg[2] == "Octopus900") {
-    print("Octopus parameters")
     pars$serverPort <- appParams$port
     pars$eyeSuiteSettingsLocation <- appParams$O900path
     pars$bigWheel <- appParams$O900wheel
     pars$zero_dB_is_10000_asb <- appParams$O900max
-    pars$eye <- msg[3]
+    pars$eye <- ifelse(msg[3] == "R", "right", "left")
   }
   if(msg[2] == "SimHenson") {
     pars$type <- "X"
@@ -106,10 +106,11 @@ opiBackgroundParams <- function(machine, appParams, msg) {
     # by now use only defaults
   }
   if(machine == "Octopus900") {
-    pars$lum <- NA
-    pars$color <- NA
-    pars$fixation <- NA
-    pars$fixIntensity <- NA
+    pars$lum <- .OpiEnv$O900$BG_10
+    pars$color <- .OpiEnv$O900$MET_COL_WW
+    pars$fixation <- ifelse(msg[2] == "CROSS", .OpiEnv$O900$FIX_CROSS,
+                            .OpiEnv$O900$FIX_CENTER)
+    pars$fixIntensity <- 20
     }
   if(substr(machine, 1, 3) == "Sim") {
     pars$col <- NA
@@ -409,13 +410,13 @@ makeStimHelperConstructor <- function(machine, perimetry, eye, val, appParams) {
         return(ff)
       }
     } else if(machine == "Octopus900") {
-      if(appParams$O900max) level <- dbTocd(db, 10000 / pi)
-      else level <- dbTocd(db, 4000 / pi)
+      if(appParams$O900max) maxlum <- 10000 / pi
+      else maxlum <- 4000 / pi
       makeStimHelper <- function(x, y, w) {  # returns a function of (db,n)
         ff <- function(db, n) db + n
         body(ff) <- substitute({
           s <- list(x = x, y = y,
-                    size = pars$val, level = level,
+                    size = pars$val, level = dbTocd(db, maxlum),
                     duration = appParams$presTime, responseWindow = w)
           class(s) <- "opiStaticStimulus"
           return(s)

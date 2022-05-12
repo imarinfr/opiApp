@@ -151,7 +151,7 @@ client <- function(input, output, session) {
                         selected = ifelse(input$eye == "B", "R", input$eye))
     }
     if(input$machine == "Octopus900") {
-      if(input$O900max) maxlum <<- 10000 / pi
+      if(appParams$O900max) maxlum <<- 10000 / pi
       else maxlum <<- 4000 / pi
     } else if(input$machine == "Compass" | substr(input$machine, 1, 3) == "Sim")
       maxlum <<- 10000 / pi
@@ -236,6 +236,8 @@ client <- function(input, output, session) {
   observe({
     if(input$machine == "PhoneHMD")
       statement <- "opiSetBackground B B annulus"
+    else if(input$machine == "Octopus900")
+      statement <- "opiSetBackground CENTER"
     else
       statement <- "opiSetBackground"
     ShinySender$push(title = "opiStatement", message = statement)
@@ -271,6 +273,8 @@ client <- function(input, output, session) {
       msg(errortxt(msgtxt$message))
       if(input$machine == "PhoneHMD")
         statement <- "opiSetBackground B none"
+      else if(input$machine == "Octopus900")
+        statement <- "opiSetBackground CROSS"
       else
         statement <- "opiSetBackground"
       ShinySender$push(title = "opiStatement", message = statement)
@@ -283,6 +287,8 @@ client <- function(input, output, session) {
   observe({
     if(input$machine == "PhoneHMD")
       statement <- "opiSetBackground B none"
+    else if(input$machine == "Octopus900")
+      statement <- "opiSetBackground CROSS"
     else
       statement <- "opiSetBackground"
     ShinySender$push(title = "opiStatement", message = statement)
@@ -299,6 +305,8 @@ client <- function(input, output, session) {
   observe({
     if(input$machine == "PhoneHMD")
       statement <- paste("opiSetBackground B B", appParams$fixtype)
+    else if(input$machine == "Octopus900")
+      statement <- "opiSetBackground CROSS"
     else
       statement <- "opiSetBackground"
     ShinySender$push(title = "opiStatement", message = statement)
@@ -407,7 +415,6 @@ client <- function(input, output, session) {
         resReceived <- parseResults(received, type)
       else msg(errortxt("Wrong number of parameters received"))
       if(!is.null(resReceived)) {
-        print(resReceived$level)
         res <<- rbind(res, resReceived)
         if(type == "F") # update results
           foveadb <<- resReceived$th
@@ -475,7 +482,7 @@ client <- function(input, output, session) {
     x <- as.numeric(received[2])
     y <- as.numeric(received[3])
     level <- as.numeric(received[4])
-    seen <- as.logical(received[5])
+    seen <- as.logical(as.numeric(received[5]))
     time <- as.numeric(received[6])
     respWin <- as.numeric(received[7])
     done <- as.logical(received[8])
