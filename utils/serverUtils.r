@@ -150,7 +150,7 @@ setupPhoneHMD <- function(machine, appParams, perimetry, algorithm, pars, algpar
     minval <- 0.05 # degrees; approx to Size I / 2.
     minstim <- ceiling(cdTodb(minval, pars$maxval))
   }
-  st <- initStates(algorithm, minstim, pars$maxval, appParams$dbstep, algpar)
+  st <- initStates(algorithm, minstim, pars$maxval, appParams$dbstep, algpar, locs)
   settings <- initSettings(machine, algorithm, perimetry, pars$makeStimHelper, st$domain,
                            minstim, appParams$maxval, algpar, locs, appParams)
   return(list(states = st$states, settings = settings))
@@ -159,7 +159,7 @@ setupPhoneHMD <- function(machine, appParams, perimetry, algorithm, pars, algpar
 setupCompass <- function(machine, appParams, perimetry, algorithm, pars, algpar, locs) {
   maxlum <- 10000 / pi
   minstim <- 50
-  st <- initStates(algorithm, minstim, maxlum, 1, algpar)
+  st <- initStates(algorithm, minstim, maxlum, 1, algpar, locs)
   settings <- initSettings(machine, algorithm, perimetry, pars$makeStimHelper, st$domain,
                            minstim, maxlum, algpar, locs, appParams)
   return(list(states = st$states, settings = settings))
@@ -169,7 +169,7 @@ setupOctopus <- function(machine, appParams, perimetry, algorithm, pars, algpar,
   if(appParams$O900max) maxlum <- 10000 / pi
   else maxlum <- 4000 / pi
   minstim <- 50
-  st <- initStates(algorithm, minstim, maxlum, 1, algpar)
+  st <- initStates(algorithm, minstim, maxlum, 1, algpar, locs)
   settings <- initSettings(machine, algorithm, perimetry, pars$makeStimHelper, st$domain,
                            minstim, maxlum, algpar, locs, appParams)
   return(list(states = st$states, settings = settings))
@@ -178,7 +178,7 @@ setupOctopus <- function(machine, appParams, perimetry, algorithm, pars, algpar,
 setupIMO <- function(machine, appParams, perimetry, algorithm, pars, algpar, locs) {
   maxlum <- 10000 / pi
   minstim <- 50
-  st <- initStates(algorithm, minstim, maxlum, 1, algpar)
+  st <- initStates(algorithm, minstim, maxlum, 1, algpar, locs)
   settings <- initSettings(machine, algorithm, perimetry, pars$makeStimHelper, st$domain,
                            minstim, maxlum, algpar, locs, appParams)
   return(list(states = st$states, settings = settings))
@@ -187,13 +187,13 @@ setupIMO <- function(machine, appParams, perimetry, algorithm, pars, algpar, loc
 setupSimulation <- function(machine, appParams, perimetry, algorithm, pars, algpar, locs) {
   maxlum <- 10000 / pi
   minstim <- 40
-  st <- initStates(algorithm, minstim, maxlum, 1, algpar)
+  st <- initStates(algorithm, minstim, maxlum, 1, algpar, locs)
   settings <- initSettings(machine, algorithm, perimetry, pars$makeStimHelper, st$domain,
                            minstim, maxlum, algpar, locs, appParams)
   return(list(states = st$states, settings = settings))
 }
 # create states and settings
-initStates <- function(algorithm, minstim, maxval, dbstep, algpar) {
+initStates <- function(algorithm, minstim, maxval, dbstep, algpar, locs) {
   states <- NULL
   if(algorithm == "ZEST") {
     # add offset to the domain
