@@ -35,16 +35,13 @@ parseMessage <- function(msg, appParams) {
     pars <- opiTestInitParams(msg)
     if(is.na(pars$val) | is.na(pars$algpar)) return(NULL)
   }
-  if(cmd == "opiTestStepRun") {
-    if(length(msg) != 1) return(NULL)
-  }
+  if(cmd == "opiTestStepRun") if(length(msg) != 1) return(NULL)
   if(cmd == "opiTestCatchTrial") {
     if(length(msg) != 5) return(NULL)
     pars <- opiTestCatchTrialParams(msg)
   }
-  if(cmd == "opiClose") {
-    if(length(msg) != 1) return(NULL)
-  }
+  if(cmd == "opiTestEnd") if(length(msg) != 1) return(NULL)
+  if(cmd == "opiClose") if(length(msg) != 1) return(NULL)
   return(list(cmd = cmd, pars = pars))
 }
 # send results to client
@@ -459,7 +456,7 @@ fourTwo.final2 <- function(state) {
   if(!is.na(state$stairResult)) return(state$stairResult)
   if(length(unique(state$responses)) < 2) return(state$startingEstimate)
   # average the last seen and the last not seen
-  return((tail(state$stimuli[state$responses], 1) + tail(state$stimuli[!state$responses]) / 2))
+  return((tail(state$stimuli[state$responses], 1) + tail(state$stimuli[!state$responses], 1) / 2))
 }
 # Full Threshold final function. Same as for Staircase
 FT.final2 <- function(state) {
