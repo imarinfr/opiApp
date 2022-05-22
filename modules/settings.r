@@ -47,11 +47,10 @@ settingsUI <- function(id) {
     ),
     htmlOutput(ns("specific")),
     fluidRow(
-      column(3, numericInput(ns("lumForSize"), "Fixed lum for size perimetry", appParams$lumForSize)),
-      column(3, numericInput(ns("sizeForLum"), "Fixed size for lum perimetry", appParams$sizeForLum)),
-      column(2, numericInput(ns("est"), "Initial estimate", appParams$est)),
-      column(2, numericInput(ns("estSD"), "maximum SD (ZEST)", appParams$estSD)),
-      column(2, numericInput(ns("nreps"), "Repetitions (MOCS)", appParams$nreps))
+      column(4, numericInput(ns("lumForSize"), "Luminance for size perimetry", appParams$lumForSize)),
+      column(4, numericInput(ns("sizeForLum"), "Size for lum perimetry", appParams$sizeForLum)),
+      column(2, numericInput(ns("estSD"), "ZEST SD", appParams$estSD)),
+      column(2, numericInput(ns("nreps"), "MOCS reps", appParams$nreps))
     ),
     fluidRow(
       column(3, actionButton(ns("saveSettings"), "Save settings"), offset = 3),
@@ -129,7 +128,6 @@ populateDefaults <- function(session) {
   updateNumericInput(session, "nreps", value = appParams$nreps)
   updateNumericInput(session, "lumForSize", value = appParams$lumForSize)
   updateNumericInput(session, "sizeForLum", value = appParams$sizeForLum)
-  updateNumericInput(session, "est", value = appParams$est)
   updateTextInput(session, "O900path", value = appParams$O900path)
   updateRadioButtons(session, "O900wheel", selected = appParams$O900wheel)
   updateRadioButtons(session, "O900max", selected = appParams$O900max)

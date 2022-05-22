@@ -74,13 +74,6 @@ opiInitParams <- function(msg, appParams) {
     pars$zero_dB_is_10000_asb <- appParams$O900max
     pars$eye <- ifelse(msg[3] == "R", "right", "left")
   }
-  if(msg[2] == "SimHenson") {
-    pars$type <- "X"
-    pars$A <- 1
-    pars$B <- 3.62
-    pars$cap <- 6
-    pars$maxStim <- appParams$maxlum
-  }
   return(pars)
 }
 opiBackgroundParams <- function(machine, appParams, msg) {
@@ -118,7 +111,7 @@ opiBackgroundParams <- function(machine, appParams, msg) {
 opiTestInitParams <- function(msg)
   return(list(eye = msg[2], perimetry = msg[3],
               algorithm = msg[4], val = as.numeric(msg[5]),
-              algpar = as.numeric(msg[6]), grid = msg[7]))
+              grid = msg[6], algpar = as.numeric(msg[7])))
 opiTestCatchTrialParams <- function(msg)
   return(list(loc = as.numeric(msg[2]),
               x = as.numeric(msg[3]), y = as.numeric(msg[4]),
@@ -156,7 +149,7 @@ setupPhoneHMD <- function(machine, appParams, perimetry, algorithm, pars, algpar
 setupCompass <- function(machine, appParams, perimetry, algorithm, pars, algpar, locs) {
   maxlum <- 10000 / pi
   minstim <- 50
-  st <- initStates(algorithm, minstim, maxlum, 1, algpar, locs)
+  st <- initStates(algorithm, minstim, maxlum, appParams$dbstep, algpar, locs)
   settings <- initSettings(machine, algorithm, perimetry, pars$makeStimHelper, st$domain,
                            minstim, maxlum, algpar, locs, appParams)
   return(list(states = st$states, settings = settings))
@@ -166,7 +159,7 @@ setupOctopus <- function(machine, appParams, perimetry, algorithm, pars, algpar,
   if(appParams$O900max) maxlum <- 10000 / pi
   else maxlum <- 4000 / pi
   minstim <- 50
-  st <- initStates(algorithm, minstim, maxlum, 1, algpar, locs)
+  st <- initStates(algorithm, minstim, maxlum, appParams$dbstep, algpar, locs)
   settings <- initSettings(machine, algorithm, perimetry, pars$makeStimHelper, st$domain,
                            minstim, maxlum, algpar, locs, appParams)
   return(list(states = st$states, settings = settings))
@@ -175,7 +168,7 @@ setupOctopus <- function(machine, appParams, perimetry, algorithm, pars, algpar,
 setupIMO <- function(machine, appParams, perimetry, algorithm, pars, algpar, locs) {
   maxlum <- 10000 / pi
   minstim <- 50
-  st <- initStates(algorithm, minstim, maxlum, 1, algpar, locs)
+  st <- initStates(algorithm, minstim, maxlum, appParams$dbstep, algpar, locs)
   settings <- initSettings(machine, algorithm, perimetry, pars$makeStimHelper, st$domain,
                            minstim, maxlum, algpar, locs, appParams)
   return(list(states = st$states, settings = settings))
@@ -184,7 +177,7 @@ setupIMO <- function(machine, appParams, perimetry, algorithm, pars, algpar, loc
 setupSimulation <- function(machine, appParams, perimetry, algorithm, pars, algpar, locs) {
   maxlum <- 10000 / pi
   minstim <- 40
-  st <- initStates(algorithm, minstim, maxlum, 1, algpar, locs)
+  st <- initStates(algorithm, minstim, maxlum, appParams$dbstep, algpar, locs)
   settings <- initSettings(machine, algorithm, perimetry, pars$makeStimHelper, st$domain,
                            minstim, maxlum, algpar, locs, appParams)
   return(list(states = st$states, settings = settings))
@@ -195,33 +188,29 @@ initStates <- function(algorithm, minstim, maxval, dbstep, algpar, locs) {
   if(algorithm == "ZEST") {
     # add offset to the domain
     offset <- 5
-    # the equivalent to 30 dB HFA
-    guess <- cdTodb(dbTocd(30), maxval)
     domain <- seq(-offset, minstim + offset, by = dbstep)
     # we do not pass the makeStim here, but generate one at every iteration to be
     # able to modify the response window
     for(i in 1:nrow(locs))
       states[[i]] <- ZEST.start(domain = domain,
-                                prior = bimodal_pmf(domain, guess, dbstep),
+                                prior = bimodal_pmf(domain, locs$est[i], dbstep),
                                 stopType = "S", stopValue = algpar,
                                 minStimulus = 0, maxStimulus = minstim,
                                 makeStim = NULL)
   } else if(algorithm == "MOCS") {
     # add n levels around the initial guess (at 0 in the domain) separated by dbstep
-    nlevels <- 3
-    # the equivalent to 30 dB HFA
-    guess <- ceiling(cdTodb(dbTocd(30), maxval))
-    domain <- seq(-nlevels, nlevels, by = dbstep)
+    ndB <- 3
+    domain <- seq(-ndB, ndB, by = dbstep)
     for(i in 1:nrow(locs))
-      states[[i]] <- MOCS.start(guess, domain, algpar, minstim)
+      states[[i]] <- MOCS.start(locs$est[i], domain, algpar, minstim)
   } else {
     domain <- seq(0, minstim, by = dbstep)
     if(algorithm == "FT") {
       for(i in 1:nrow(locs))
-        states[[i]] <- FT.start(est = algpar, instRange = c(0, minstim), makeStim = NULL)
+        states[[i]] <- FT.start(est = locs$est[i], instRange = c(0, minstim), makeStim = NULL)
     } else if(algorithm == "staircase") {
       for(i in 1:nrow(locs))
-        states[[i]] <- fourTwo.start(est = algpar, instRange = c(0, minstim), makeStim = NULL)
+        states[[i]] <- fourTwo.start(est = locs$est[i], instRange = c(0, minstim), makeStim = NULL)
     }
   }
   return(list(domain = domain, states = states))
@@ -506,27 +495,26 @@ MOCS.stop <- function(state) {
 }
 # return best brute-force linear estimate
 MOCS.final <- function(state) {
-  if(is.null(state$responses)) return(state$estimate)
-  if(all(state$responses)) return(state$range[1])
-  if(all(!state$responses)) return(state$range[2])
-  if(length(unique(state$stimuli)) < length(state$domain))
+  if(is.null(state$responses) || length(unique(state$stimuli)) < length(state$domain))
     return(state$estimate)
+  if(all(state$responses)) return(max(state$domain))
+  if(all(!state$responses)) return(min(state$domain))
   # get FOS data
   seen <- table(state$stimuli[state$responses])
   notseen <- table(state$stimuli[!state$responses])
   dat <- matrix(c(rep(0, 2 * length(state$domain))), length(state$domain), 2)
   dat[which(state$domain %in% names(seen)),1] <- seen
   dat[which(state$domain %in% names(notseen)),2] <- notseen
-  if(any(dat[,1] + dat[,2] < 6)) return(state$estimate)
-  tryCatch({
-    invisible(fos <- psyfun.2asym(dat ~ state$domain, link = probit.2asym))
-    est <- (fos$family$linkfun(0.5) - fos$coefficients[1]) / fos$coefficients[2]
-  }, error = function(e) {
-    est <- state$estimate
-  })
-  if(est < min(state$domain)) est <- min(state$domain)
-  if(est > max(state$domain)) est <- max(state$domain)
-  return(est, 1)
+  if(any(dat[,1] + dat[,2] < 4)) return(state$estimate)
+  p <- dat[,1] / (dat[,1] + dat[,2])
+  idx1 <- which.min(abs(p - 0.5))
+  if(idx1 == 1 || idx1 == length(state$domain) || p[idx1] == 0.5)
+    idx2 <- idx1
+  else if(p[idx1] < 0.5)
+    idx2 <- idx1 - 1
+  else if(p[idx1] > 0.5)
+    idx2 <- idx1 + 1
+  return(round((state$domain[idx1] + state$domain[idx2]) / 2, 1))
 }
 # constructing parameters for MOCS
 MOCSpars <- function(guess, domain, nreps, minstim) {

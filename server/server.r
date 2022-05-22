@@ -45,7 +45,7 @@ server <- future({
     ###############
     if(cmd == "opiTestInit") {
       if(pars$grid == "fovea")
-        locs <- data.frame(x = 0, y = 0, w = 1)
+        locs <- data.frame(x = 0, y = 0, w = 1, est = round(cdTodb(dbTocd(30), appParams$maxlum)))
       else
         locs <- grids[[pars$grid]]$locs
       res <- tryCatch({

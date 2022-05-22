@@ -19,7 +19,8 @@ clientUI <- function(id) {
       column(2, selectInput(ns("eye"), "Eye", choices = list(Right = "R", Left = "L", Both = "B"),
                             selected = "Both")),
       column(3, selectInput(ns("algorithm"), "Algorithm", choices = algorithms, selected = "ZEST")),
-      column(3, numericInput(ns("algpar"), "placeholder", value = NA)),
+      column(2, numericInput(ns("estSD"), "ZEST SD", value = appParams$estSD)),
+      column(2, numericInput(ns("nreps"), "MOCS reps", value = appParams$nreps))
     ),
     fluidRow(column(12, htmlOutput(ns("msgconn")))),
     fluidRow(
@@ -170,14 +171,9 @@ client <- function(input, output, session) {
   observe({
     if(is.na(input$val)) fillVal()
   }) %>% bindEvent(input$val)
-  # if algorithm changes
-  observe({
-    if(is.na(input$algpar)) fillAlgPar()
-  }) %>% bindEvent(input$algpar)
   # if algorithm changes delete all
   observe({
     initRunVariables("A")
-    fillAlgPar()
   }) %>% bindEvent(input$algorithm)
   # if eye changes delete all
   observe({
@@ -257,8 +253,12 @@ client <- function(input, output, session) {
   }) %>% bindEvent(input$fovea, ignoreInit = TRUE)
   # if OK to test fovea
   observe({
-    statement <- paste("opiTestInit", input$eye, "luminance",
-                       input$algorithm, 0.43, input$algpar, "fovea")
+    if(input$algorithm == "ZEST")
+      algpar <- input$estSD
+    else if(input$algorithm == "MOCS")
+      algpar <- input$nreps
+    else algpar <- NA
+    statement <- paste("opiTestInit", input$eye, "luminance", input$algorithm, 0.43, "fovea", algpar)
     ShinySender$push(title = "opiStatement", message = statement)
     while(ShinyReceiver$empty()) Sys.sleep(0.1)
     msgtxt <- ShinyReceiver$pop()
@@ -325,8 +325,12 @@ client <- function(input, output, session) {
   }) %>% bindEvent(input$run, ignoreInit = TRUE)
   # if OK to run test in selected grid
   observe({
-    statement <- paste("opiTestInit", input$eye, input$perimetry, input$algorithm,
-                       input$val, input$algpar, input$grid)
+    if(input$algorithm == "ZEST")
+      algpar <- input$estSD
+    else if(input$algorithm == "MOCS")
+      algpar <- input$nreps
+    else algpar <- NA
+    statement <- paste("opiTestInit", input$eye, input$perimetry, input$algorithm, input$val, input$grid, algpar)
     ShinySender$push(title = "opiStatement", message = statement)
     while(ShinyReceiver$empty()) Sys.sleep(0.1)
     msgtxt <- ShinyReceiver$pop()
@@ -430,7 +434,7 @@ client <- function(input, output, session) {
     running <<- FALSE
     state <<- "run"
     enableRunElements()
-    disableElements(c("eye", "algorithm", "algpar", "pause", "stop", "close"))
+    disableElements(c("eye", "algorithm", "estSD", "nreps", "pause", "stop", "close"))
     if(runType == "F")
       msg("Test finished at fovea")
     else
@@ -446,15 +450,6 @@ client <- function(input, output, session) {
       updateNumericInput(session, "val", label = "Stimulus size", value = appParams$sizeForLum)
     else if(input$perimetry == "size")
       updateNumericInput(session, "val", label = "Stimulus luminance", value = appParams$lumForSize)
-  }
-  fillAlgPar <- function() {
-    if(input$algorithm == "staircase" | input$algorithm == "FT" ) {
-      updateNumericInput(session, "algpar", label = "Initial estimate", value = appParams$est)
-    } else if(input$algorithm == "MOCS") {
-      updateNumericInput(session, "algpar", label = "Repetitions", value = appParams$nreps)
-    } else if(input$algorithm == "ZEST") {
-      updateNumericInput(session, "algpar", label = "Max estimate SD", value = appParams$estSD)
-    }
   }
   initRunVariables <- function(type) {
     resTrial(NA) # to force refresh
@@ -516,8 +511,14 @@ client <- function(input, output, session) {
     write.csv(res, file = fnamelog, row.names = FALSE)
     # then save the processed test
     fname <- paste0("results/", fid, ".csv")
+    if(input$algorithm == "ZEST")
+      algpar <- input$estSD
+    else if(input$algorithm == "MOCS")
+      algpar <- input$nreps
+    else
+      algpar <- NA
     dat <- prepareToSave(patient(), input$machine, input$perimetry, input$val,
-                         input$grid, input$eye, input$algorithm, input$algpar, tdate, ttime,
+                         input$grid, input$eye, input$algorithm, algpar, tdate, ttime,
                          input$comments, res, foveadb, locs)
     # if file exist, append result
     if(file.exists(fname)) dat <- rbind(read.csv(file = fname, colClasses = "character"), dat)

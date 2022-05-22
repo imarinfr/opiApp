@@ -160,7 +160,8 @@ gridgen <- function(input, output, session) {
       grids[[length(grids) + 1]] <<- list(name = input$newname,
                                      locs = data.frame(x = rep(as.numeric(NA), input$numrows),
                                                        y = rep(as.numeric(NA), input$numrows),
-                                                       w = integer(input$numrows)))
+                                                       w = integer(input$numrows),
+                                                       est = integer(input$numrows)))
       names(grids)[length(grids)] <<- input$newcode
       selGridRow <<- length(grids)
       save(grids, file = "config/grids.rda")

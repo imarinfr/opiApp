@@ -119,14 +119,17 @@ buildGridTable <- function(grids)
                     "Waves" = sapply(grids, function(gg) max(gg$locs$w))))
 # init locations
 initLocs <- function()
-  return(data.frame(x = as.numeric(NA), y = as.numeric(NA), w = as.integer(0)))
+  return(data.frame(x = as.numeric(NA), y = as.numeric(NA), w = as.integer(0), est = as.integer(NA)))
 # assemble grid table
 fillPtsTable <- function(locs, readOnly = FALSE) {
   locsOut <- locs
-  locsOut <- rhandsontable(locsOut, colHeaders = c("X", "Y", "Wave"),
-                           selectCallback = TRUE, height = 300, rowHeaderWidth = 75,
+  locsOut <- rhandsontable(locsOut, colHeaders = c("X", "Y", "Wave", "Est"),
+                           selectCallback = TRUE, height = 300,
                            readOnly = readOnly, contextMenu = TRUE) %>%
-    hot_col(col = 3, format = "1") %>%
+    hot_col(col = 1, colWidths = 45) %>%
+    hot_col(col = 2, colWidths = 45) %>%
+    hot_col(col = 3, format = "1", colWidths = 50) %>%
+    hot_col(col = 4, colWidths = 45) %>%
     hot_cols(halign = "htRight", valign = "htMiddle") %>%
     hot_context_menu(allowColEdit = FALSE, allowRowEdit = !readOnly)
   return(locsOut)
@@ -341,9 +344,9 @@ falseNegativePars <- function(locs, res, eye) {
 enableElements <- function(ids) lapply(ids, enable)
 disableElements <- function(ids) lapply(ids, disable)
 enableRunElements <- function()
-  enableElements(c("close", "fovea", "run", "eye", "grid", "perimetry", "algorithm", "val", "algpar"))
+  enableElements(c("close", "fovea", "run", "eye", "grid", "perimetry", "algorithm", "val", "estSD", "nreps"))
 disableRunElements <- function()
-  disableElements(c("close", "fovea", "run", "eye", "grid", "perimetry", "algorithm", "val", "algpar", "save", "cancel"))
+  disableElements(c("close", "fovea", "run", "eye", "grid", "perimetry", "algorithm", "val", "estSD", "nreps", "save", "cancel"))
 # patient's information to show: id, name, surname, age, gender
 parsePatientOutput <- function(patient) {
   if(is.na(patient$id)) {

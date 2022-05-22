@@ -10,7 +10,6 @@ library(plotrix)
 library(txtq)
 library(future)
 library(promises)
-library(psyphy)
 library(deldir)
 # prepare to run processes in parallel
 plan(multisession, split = TRUE)
