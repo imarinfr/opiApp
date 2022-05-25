@@ -22,7 +22,7 @@ source("modules/gridgen.r", local = TRUE)
 source("modules/patients.r", local = TRUE)
 source("modules/client.r", local = TRUE)
 source("modules/report.r", local = TRUE)
-source("utils/utils.r", local = TRUE)
+source("modules/utils.r", local = TRUE)
 
 # global variables
 settingsChanged <- reactiveVal(FALSE)

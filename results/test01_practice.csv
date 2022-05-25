@@ -1,3 +1,0 @@
-"id","eye","date","time","machine","perimetry","fixedParam","grid","algorithm","stopValue","age","type","fp","fpt","fpr","fn","fnt","fnr","npres","rt150","rt600","rtsd","rtm","duration","pause","comments","foveadb","l1","l2","l3","l4","l5","l6","l7"
-"test01","L","2022-02-09","15:16:44","SimHenson","luminance","1.72","practice","MOCS","5","898","pwg","0","0","0","0","0","0","245","120","0","0","200","02:09","00:00","",NA,"22","22","22","22","22","22","22"
-"test01","R","2022-02-09","16:00:36","SimHenson","luminance","1.72","practice","MOCS","5","898","pwg","0","0","0","0","0","0","245","118","0","0","200","02:27","00:00","","22","22","22","22","22","22","22","22"

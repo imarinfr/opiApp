@@ -8,19 +8,27 @@ clientUI <- function(id) {
   tagList(
     fluidRow(
       column(4, htmlOutput(ns("patient"))),
-      column(3, selectInput(ns("machine"), "OPI implementation",
-                            choices = opiImpl, selected = appParams$machine)),
-      column(2, radioButtons(ns("perimetry"), "Perimetry",
-                             choices = c("luminance", "size"), selected = "luminance")),
-      column(3, numericInput(ns("val"), "placeholder", value = NA)),
+      column(8,
+        fluidRow(
+          column(5, selectInput(ns("machine"), "OPI implementation",
+                                choices = opiImpl, selected = appParams$machine)),
+          column(5, radioButtons(ns("perimetry"), "Perimetry", inline = TRUE,
+                                 choices = c("luminance", "size"), selected = "luminance"))
+        ),
+        fluidRow(
+          column(3, selectInput(ns("eye"), "Eye", choices = list(Right = "R", Left = "L", Both = "B"), selected = "Both")),
+          column(3, numericInput(ns("lum"), "lum (cd/m2)", value = appParams$lumForSize)),
+          column(3, numericInput(ns("size"), "size (\u00B0)", value = appParams$sizeForLum)),
+          column(3, numericInput(ns("dbstep"), "Step (dB)", appParams$dbstep))
+        )
+      ),
     ),
     fluidRow(
       column(3, selectInput(ns("grid"), "Grid", choices = gridNames, selected = gridNames[1])),
-      column(2, selectInput(ns("eye"), "Eye", choices = list(Right = "R", Left = "L", Both = "B"),
-                            selected = "Both")),
       column(3, selectInput(ns("algorithm"), "Algorithm", choices = algorithms, selected = "ZEST")),
       column(2, numericInput(ns("estSD"), "ZEST SD", value = appParams$estSD)),
-      column(2, numericInput(ns("nreps"), "MOCS reps", value = appParams$nreps))
+      column(2, numericInput(ns("nreps"), "MOCS reps", value = appParams$nreps)),
+      column(2, numericInput(ns("range"), "range (dB)", value = appParams$range))
     ),
     fluidRow(column(12, htmlOutput(ns("msgconn")))),
     fluidRow(
@@ -66,7 +74,7 @@ client <- function(input, output, session) {
   runType <- NULL
   trialType <- NULL
   lastTrialType <- NULL
-  foveadb <- NULL
+  foveadb <- NA
   res <- NULL
   locs <- NULL
   # define routine to initialized all run control variables
@@ -100,11 +108,11 @@ client <- function(input, output, session) {
   observe({
     running <<- !running
     if(running) {
-      tp <<- tp + as.numeric(difftime(Sys.time(), tp0, units = "secs"))
+      if(runType != "F") tp <<- tp + as.numeric(difftime(Sys.time(), tp0, units = "secs"))
       updateActionButton(session, "pause", label = "Pause")
       msg("Continuing test ...")
     } else {
-      tp0 <<- Sys.time()
+      if(runType != "F") tp0 <<- Sys.time()
       updateActionButton(session, "pause", label = "Continue")
       msg("Test paused. Press 'Continue' to restart the test")
     }
@@ -166,11 +174,7 @@ client <- function(input, output, session) {
       updateRadioButtons(session, "perimetry", selected = "luminance")
       disable("perimetry")
     } else enable("perimetry")
-    fillVal()
   }) %>% bindEvent(input$perimetry, ignoreInit = TRUE)
-  observe({
-    if(is.na(input$val)) fillVal()
-  }) %>% bindEvent(input$val)
   # if algorithm changes delete all
   observe({
     initRunVariables("A")
@@ -190,7 +194,7 @@ client <- function(input, output, session) {
     ShinySender$reset()
     ShinyReceiver$reset()
     # initialize server
-    source("server/server.r", local = TRUE)
+    source("modules/server.r", local = TRUE)
     then(server,
          onFulfilled = function() print("OPI server closed"),
          onRejected = function(e) print(e$message))
@@ -241,7 +245,7 @@ client <- function(input, output, session) {
     msgtxt <- ShinyReceiver$pop()
     if(msgtxt$title == "OK") {
       showModal(modalDialog(
-        title = "Start testing the fovea with Goldmann size III (0.43\u00B0) luminance perimetry",
+        title = paste0("Start testing the fovea with Goldmann size III (", input$size, "\u00B0) luminance perimetry"),
         "Press 'Yes' when ready or 'Cancel'",
         footer = tagList(actionButton(ns("foveaOK"), "Start"),
                          actionButton(ns("foveaCancel"), "Cancel"))
@@ -253,19 +257,15 @@ client <- function(input, output, session) {
   }) %>% bindEvent(input$fovea, ignoreInit = TRUE)
   # if OK to test fovea
   observe({
-    if(input$algorithm == "ZEST")
-      algpar <- input$estSD
-    else if(input$algorithm == "MOCS")
-      algpar <- input$nreps
-    else algpar <- NA
-    statement <- paste("opiTestInit", input$eye, "luminance", input$algorithm, 0.43, "fovea", algpar)
+    statement <- paste("opiTestInit", input$eye, "luminance", input$algorithm, "fovea",
+                       input$size, input$lum, input$dbstep, input$estSD, input$nreps, input$range)
     ShinySender$push(title = "opiStatement", message = statement)
     while(ShinyReceiver$empty()) Sys.sleep(0.1)
     msgtxt <- ShinyReceiver$pop()
     if(msgtxt$title == "OK") {
       disableRunElements()
       enableElements(c("pause", "stop"))
-      msg("Running luminance perimetry with Goldmann size III at the fovea")
+      msg(paste0("Running luminance perimetry with at the fovea for a stimulus of size ", input$size, "\u00B0"))
       runType <<- "F"
       initRunVariables(runType)
       running <<- TRUE
@@ -325,12 +325,8 @@ client <- function(input, output, session) {
   }) %>% bindEvent(input$run, ignoreInit = TRUE)
   # if OK to run test in selected grid
   observe({
-    if(input$algorithm == "ZEST")
-      algpar <- input$estSD
-    else if(input$algorithm == "MOCS")
-      algpar <- input$nreps
-    else algpar <- NA
-    statement <- paste("opiTestInit", input$eye, input$perimetry, input$algorithm, input$val, input$grid, algpar)
+    statement <- paste("opiTestInit", input$eye, input$perimetry, input$algorithm, input$grid,
+                       input$size, input$lum, input$dbstep, input$estSD, input$nreps, input$range)
     ShinySender$push(title = "opiStatement", message = statement)
     while(ShinyReceiver$empty()) Sys.sleep(0.1)
     msgtxt <- ShinyReceiver$pop()
@@ -407,8 +403,10 @@ client <- function(input, output, session) {
   readResults <- function(type) {
     resReceived <- NULL
     # update times
-    tt <<- tt + as.numeric(difftime(Sys.time(), tt0, units = "secs"))
-    tt0 <<- Sys.time()
+    if(type != "F") {
+      tt <<- tt + as.numeric(difftime(Sys.time(), tt0, units = "secs"))
+      tt0 <<- Sys.time()
+    }
     # check if all good
     while(ShinyReceiver$empty()) Sys.sleep(0.1)
     msgtxt <- ShinyReceiver$pop()
@@ -421,7 +419,7 @@ client <- function(input, output, session) {
       if(!is.null(resReceived)) {
         res <<- rbind(res, resReceived)
         if(type == "F") # update results
-          foveadb <<- resReceived$th
+          foveadb <<- as.numeric(resReceived$th)
         else if(type == "N")
           updateLocations(resReceived)
       }
@@ -434,32 +432,25 @@ client <- function(input, output, session) {
     running <<- FALSE
     state <<- "run"
     enableRunElements()
-    disableElements(c("eye", "algorithm", "estSD", "nreps", "pause", "stop", "close"))
-    if(runType == "F")
-      msg("Test finished at fovea")
-    else
-      msg("Test finished")
-    enableElements("cancel")
-    if(sum(res$type == "N") > 0) enableElements("save")
+    disableElements(c("pause", "stop", "close"))
+    if(runType == "F") msg("Test finished at fovea")
+    else msg("Test finished")
+    if(sum(res$type == "N") > 0) enableElements(c("save", "cancel"))
   }
   ##########
   # Routines
   ##########
-  fillVal <- function() {
-    if(input$perimetry == "luminance")
-      updateNumericInput(session, "val", label = "Stimulus size", value = appParams$sizeForLum)
-    else if(input$perimetry == "size")
-      updateNumericInput(session, "val", label = "Stimulus luminance", value = appParams$lumForSize)
-  }
   initRunVariables <- function(type) {
     resTrial(NA) # to force refresh
     resTrial(NULL)
     state <<- "run"
     # reset time counters
-    tp0 <<- tt <<- tp <<- 0
-    tt0 <<- Sys.time()
+    if(type != "F") {
+      tp0 <<- tt <<- tp <<- 0
+      tt0 <<- Sys.time()
+    }
     if(type == "A" || type == "F") {
-      foveadb <<- NULL
+      foveadb <<- NA
       # remove all results at the fovea
       res <<- res[res$type != "F",]
     }
@@ -517,9 +508,12 @@ client <- function(input, output, session) {
       algpar <- input$nreps
     else
       algpar <- NA
-    dat <- prepareToSave(patient(), input$machine, input$perimetry, input$val,
-                         input$grid, input$eye, input$algorithm, algpar, tdate, ttime,
-                         input$comments, res, foveadb, locs)
+    if(input$perimetry == "luminance") val <- input$size
+    else val <- input$lum
+    dat <- prepareToSave(patient(), input$machine, input$perimetry, input$algorithm,
+                         input$grid, input$eye, appParams$bglum, input$lum, input$size,
+                         input$dbstep, input$estSD, input$nreps, input$range,
+                         tdate, ttime, input$comments, res, foveadb, locs)
     # if file exist, append result
     if(file.exists(fname)) dat <- rbind(read.csv(file = fname, colClasses = "character"), dat)
     # save test for the patient

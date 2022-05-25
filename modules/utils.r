@@ -310,10 +310,10 @@ resPlot <- function(res, locs, eye, foveadb, maxlum) {
     draw.circle(res$x, res$y, radius = res$size / 2, col = ccol, border = NA)
     points(res$x, res$y, pch = 19, cex = cex, col = col)
   }
-  text(0, 0, foveadb, col = fovcol, font = 2)
+  text(0, 0, round(foveadb), col = fovcol, font = 2)
   isna <- is.na(locs$th)
   if(any(isna))  points(locs$x[isna], locs$y[isna], pch = 19, cex = ptcex, col = cols[locs$w[isna]])
-  if(any(!isna)) text(locs$x[!isna], locs$y[!isna], locs$th[!isna], col = cols[locs$w[!isna]], font = 2)
+  if(any(!isna)) text(locs$x[!isna], locs$y[!isna], round(locs$th[!isna]), col = cols[locs$w[!isna]], font = 2)
 }
 falsePositivePars <- function(machine, perimetry, bglum, maxlum, locs, eye) {
   if(perimetry == "luminance" & machine == "PhoneHMD")
@@ -344,9 +344,9 @@ falseNegativePars <- function(locs, res, eye) {
 enableElements <- function(ids) lapply(ids, enable)
 disableElements <- function(ids) lapply(ids, disable)
 enableRunElements <- function()
-  enableElements(c("close", "fovea", "run", "eye", "grid", "perimetry", "algorithm", "val", "estSD", "nreps"))
+  enableElements(c("close", "fovea", "run", "eye", "grid", "perimetry", "algorithm", "lum", "size", "dbstep", "estSD", "nreps", "range"))
 disableRunElements <- function()
-  disableElements(c("close", "fovea", "run", "eye", "grid", "perimetry", "algorithm", "val", "estSD", "nreps", "save", "cancel"))
+  disableElements(c("close", "fovea", "run", "eye", "grid", "perimetry", "algorithm", "lum", "size", "dbstep", "estSD", "nreps", "range", "save", "cancel"))
 # patient's information to show: id, name, surname, age, gender
 parsePatientOutput <- function(patient) {
   if(is.na(patient$id)) {
@@ -442,13 +442,13 @@ renderResult <- function(trialRes, res, npoints) {
   return(HTML(txt))
 }
 # prepare results to save
-prepareToSave <- function(patient, machine, perimetry, val, grid, eye,
-                          algorithm, algpar, tdate, ttime, comments, res,
-                          foveadb, locs) {
+prepareToSave <- function(patient, machine, perimetry, algorithm, grid,
+                          eye, background, lum, size, dbstep, estSD, nreps, range,
+                          tdate, ttime, comments, res, foveadb, locs) {
   dat <- data.frame(id = patient$id, eye = eye, date = tdate, time = ttime,
-                    machine = machine, perimetry = perimetry, fixedParam = val,
-                    grid = grid, algorithm = algorithm, stopValue = algpar,
-                    age = patient$age, type = patient$type,
+                    age = patient$age, type = patient$type, machine = machine, perimetry = perimetry,
+                    algorithm = algorithm, grid = grid, background = background, luminance = lum,
+                    size = size, dbstep = dbstep, estSD = estSD, nreps = nreps, range = range,
                     fp = NA, fpt = NA, fpr = NA, fn = NA, fnt = NA, fnr = NA,
                     npres = NA, rt150 = NA, rt600 = NA, rtsd = NA, rtm = NA,
                     duration = NA, pause = NA, comments = comments, foveadb = NA)
@@ -487,19 +487,20 @@ showPlot <- function(locs, eye, foveadb, ps = 9, new = FALSE) {
   cols <- brewer.pal(8, "Dark2")[1:max(locs$w, na.rm = TRUE)]
   cols[1] <- "#000000"
   fovcol <- "black"
-  text(0, 0, foveadb, col = fovcol, font = 2)
+  text(0, 0, round(foveadb), col = fovcol, font = 2)
   isna <- is.na(locs$th)
   if(any(isna))  points(locs$x[isna], locs$y[isna], pch = 19, cex = 0.75, col = paste0(cols[locs$w[isna]], alpha))
-  if(any(!isna)) text(locs$x[!isna], locs$y[!isna], locs$th[!isna], col = cols[locs$w[!isna]], font = 2)
+  if(any(!isna)) text(locs$x[!isna], locs$y[!isna], round(locs$th[!isna]), col = cols[locs$w[!isna]], font = 2)
 }
 # get all available reports and sort them by date, then time
 getReports <- function(patientTable) {
-  fnames <- paste("results", dir("results/", pattern = "*.csv"), sep = "/")
+  fnames <- dir("results/", pattern = "*.csv")
+  if(length(fnames) == 0) return(NULL)
+  fnames <- paste("results", fnames, sep = "/")
   reports <- do.call(rbind, lapply(fnames, function(ff) {
     dat <- read.csv(ff, stringsAsFactors = FALSE)
     return(dat[,setdiff(names(dat), paste0("l", 1:nrow(grids[[dat$grid[1]]]$locs)))])
   }))
-  if(is.null(reports)) return(NULL)
   # merge with patient db table to get name, surname, and type of the patient
   reports <- merge(patientTable[,c("id", "name", "surname")], reports, by = "id")
   reports$date <- as.Date(reports$date)
@@ -527,9 +528,11 @@ generateReport <- function(record, res, npoints) {
     type <- record$type
     machine <- record$machine
     perimetry <- record$perimetry
-    fixedParam <- record$fixedParam
+    if(perimetry == "luminance") fixedParam <- record$size
+    if(perimetry == "size") fixedParam <- record$luminance
     algorithm <- record$algorithm
-    stopValue <- record$stopValue
+    if(algorithm == "ZEST") stopValue <- record$estSD
+    if(algorithm == "MOCS") stopValue <- record$nreps
     npres <- sum(res$type == "N")
     # compute false positives and negatives
     fp  <- sum(res$type == "FP" & res$seen)
@@ -572,10 +575,8 @@ generateReport <- function(record, res, npoints) {
   else 
     txt <- paste(txt, "<strong>Wrong perimetry</strong>", "<br/>")
   txt <- paste(txt, "<strong>Algorithm:</strong>", algorithm, "<br/>")
-  if(algorithm == "Staircase")
-    txt <- paste(txt, "<strong>Initial Estimate:</strong>", stopValue, "db<br/>")
-  else if(algorithm == "Full Threshold")
-    txt <- paste(txt, "<strong>Initial Estimate:</strong>", stopValue, "dB<br/>")
+  if(algorithm == "Staircase" || algorithm == "Full Threshold")
+    txt <- paste(txt, "<br/>")
   else if(algorithm == "MOCS")
     txt <- paste(txt, "<strong>Number of Repetitions:</strong>", stopValue, "<br/>")
   else if(algorithm == "ZEST")
@@ -609,7 +610,7 @@ savePDF <- function(fname, record, locs, res, eye, foveadb) {
   scrlist <- mountlayout()
   # plot
   screen(scrlist$plot)
-  showPlot(locs, eye, foveadb, 6, new = TRUE)
+  showPlot(locs, eye, foveadb, 5, new = TRUE)
   # info
   screen(scrlist$info)
   dat <- parsetxt(generateReport(record, res, nrow(locs)))

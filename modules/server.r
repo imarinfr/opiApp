@@ -1,4 +1,4 @@
-source("utils/serverUtils.r", local = TRUE)
+source("modules/serverUtils.r", local = TRUE)
 # test server
 server <- future({
   set.seed(Sys.time())
@@ -49,8 +49,7 @@ server <- future({
       else
         locs <- grids[[pars$grid]]$locs
       res <- tryCatch({
-        setup <- testSetup(chooseOPI()[.OpiEnv$chooser], appParams, pars$eye, pars$perimetry,
-                              pars$algorithm, pars$val, pars$algpar, locs)
+        setup <- testSetup(chooseOPI()[.OpiEnv$chooser], appParams, pars, locs)
         states <- setup$states
         settings <- setup$settings
         if(!is.null(settings))

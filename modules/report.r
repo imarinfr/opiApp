@@ -10,12 +10,12 @@ reportUI <- function(id) {
 report <- function(input, output, session) {
   ns <- session$ns
   rsel <- reactive(!is.null(input$records_rows_selected))
-  reports <- NULL
   record <- reactiveVal(NULL)
   locs <- reactiveVal(NULL)
   res <- reactiveVal(NULL)
   eye <- NULL
   foveadb <- NULL
+  reports <- NULL
   #########
   # outputs
   #########
