@@ -135,12 +135,12 @@ testSetup <- function(machine, appParams, pars, locs) {
 # set up for PhoneHMD
 setupPhoneHMD <- function(machine, appParams, pars, locs, makeStimHelper, maxval) {
   if(pars$perimetry == "luminance") {
-    minval <- 0.05 # min incremental value to present. Corresponds to about 48 HFA dB
-    minstim <- ceiling(cdTodb(appParams$bglum + minval, maxval))
+    minval <- 0.01 # min incremental value to present. Corresponds to about 48 HFA dB
+    minstim <- round(cdTodb(minval, maxval - appParams$bglum), 1)
   }
   if(pars$perimetry == "size") {
-    minval <- 0.05 # degrees; approx to Size I / 2.
-    minstim <- ceiling(cdTodb(minval, maxval))
+    minval <- 0.01 # degrees; approx to Size I / 2.
+    minstim <- round(cdTodb(minval, maxval), 1)
   }
   st <- initStates(pars, minstim, maxval, locs)
   settings <- initSettings(machine, appParams, pars, makeStimHelper,
@@ -360,7 +360,9 @@ makeStimHelperConstructor <- function(machine, appParams, pars) {
         body(ff) <- substitute({
           s <- list(eye = pars$eye,
                     x = ifelse(pars$eye == "L", -x, x), y = y,
-                    sx = pars$size, sy = pars$size, lum = dbTocd(db, appParams$maxlum),
+                    sx = pars$size, sy = pars$size,
+                    lum = appParams$bglum +
+                      dbTocd(db, appParams$maxlum - appParams$bglum),
                     col = appParams$stcol, d = appParams$presTime, w = w)
           class(s) <- "opiStaticStimulus"
           return(s)
