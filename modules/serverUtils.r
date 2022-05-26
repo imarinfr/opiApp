@@ -419,7 +419,7 @@ makeStimHelperConstructor <- function(machine, appParams, pars) {
         return(ff)
       }
     } else makeStimHelper <- NULL
-  } else if(perimetry == "size") {
+  } else if(pars$perimetry == "size") {
     if(machine == "PhoneHMD") {
       makeStimHelper <- function(x, y, w) {  # returns a function of (db,n)
         body(ff) <- substitute({
