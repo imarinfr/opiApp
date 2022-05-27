@@ -170,10 +170,7 @@ setupOctopus <- function(machine, appParams, pars, locs, makeStimHelper, maxval)
 setupIMO <- function(machine, appParams, pars, locs, makeStimHelper, maxval) {
   maxlum <- 10000 / pi
   minstim <- 50
-  if(pars$perimetry == "luminance")
-    st <- initStates(pars, minstim, maxval, locs)
-  if(pars$perimetry == "size")
-    st <- initStates(pars, minstim, maxval, locs)
+  st <- initStates(pars, minstim, maxval, locs)
   settings <- initSettings(machine, appParams, pars, makeStimHelper,
                            st$domain, minstim, maxlum, locs)
   return(list(states = st$states, settings = settings))
@@ -424,6 +421,7 @@ makeStimHelperConstructor <- function(machine, appParams, pars) {
   } else if(pars$perimetry == "size") {
     if(machine == "PhoneHMD") {
       makeStimHelper <- function(x, y, w) {  # returns a function of (db,n)
+        ff <- function(db, n) db + n
         body(ff) <- substitute({
           s <- list(eye = pars$eye,
                     x = ifelse(pars$eye == "L", -x, x), y = y,
