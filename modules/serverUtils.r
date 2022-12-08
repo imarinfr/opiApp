@@ -148,11 +148,11 @@ setupPhoneHMDLuminance <- function(machine, appParams, pars, locs) {
 # set up for PhoneHMD size
 setupPhoneHMDSize <- function(machine, appParams, pars, locs) {
   makeStimHelper <- makeStimHelperConstructorPhoneHMDSize(appParams, pars)
-  minSize <- 0.01 # degrees; approx to Size I / 2.
-  minstim <- round(cdTodb(minlum, appParams$maxdiam), 1)
-  st <- initStates(machine, appParams, pars, minstim, locs)
-  settings <- initSettingsSize(machine, appParams, pars, makeStimHelper,
-                           st$domain, minstim, minlum, locs)
+  mindiam <- 0.01 # degrees; approx to Size I
+  minstim <- round(cdTodb(mindiam, appParams$maxdiam), 1)
+  st <- initStatesSize(appParams, pars, minstim, locs)
+  settings <- initSettings(machine, appParams, pars, makeStimHelper,
+                           st$domain, minstim, mindiam, locs)
   return(list(states = st$states, settings = settings))
 }
 # set up for Compass
@@ -203,6 +203,14 @@ initStates <- function(machine, appParams, pars, minstim, locs)
                 "MOCS" = initStatesMOCS(machine, appParams, pars, minstim, locs),
                 "FT" = initStatesFT(pars, minstim, locs),
                 "staircase" = initStatesStaircase(pars, minstim, locs)))
+# create states and settings
+initStatesSize <- function(appParams, pars, minstim, locs)
+  return(switch(pars$algorithm,
+                "ZEST" = initStatesSizeZEST(appParams, pars, minstim, locs),
+                "MOCS" = initStatesSizeMOCS(appParams, pars, minstim, locs),
+                "FT" = initStatesFT(pars, minstim, locs),
+                "staircase" = initStatesStaircase(pars, minstim, locs)))
+
 initStatesZEST <- function(machine, appParams, pars, minstim, locs) {
   states <- NULL
   offset <- 5
@@ -277,6 +285,29 @@ phoneDomainMOCS <- function(intended, bglum, maxlum, lut, dbstep, range, est) {
     else dbLevels <- dbLevels[(idx + 1):length(dbLevels)]
   }
   return(round(domain, 1))
+}
+initStatesSizeZEST <- function(appParams, pars, minstim, locs) {
+  states <- NULL
+  offset <- 5
+  domain <- seq(0, minstim, by = pars$dbstep)
+  tail <- seq(pars$dbstep, offset, by = pars$dbstep)
+  domain <- c(-tail[length(tail):1], domain, domain[length(domain)] + tail)
+  for(i in 1:nrow(locs))
+    states[[i]] <- ZEST.start(domain = domain,
+                              prior = size_pmf(domain, locs$est[i]),
+                              stopType = "S", stopValue = pars$estSD,
+                              minStimulus = 0, maxStimulus = minstim,
+                              makeStim = NULL)
+  return(list(domain = domain, states = states))
+}
+initStatesSizeMOCS <- function(appParams, pars, minstim, locs) {
+  states <- NULL
+  for(i in 1:nrow(locs)) {
+    domain <- locs$est[i] + seq(-pars$range / 2, pars$range / 2, by = pars$dbstep)
+    domain <- domain[domain >= 0 & domain <= minstim]
+    states[[i]] <- MOCS.start(domain, pars$nreps, minstim)
+  }
+  return(list(domain = seq(-pars$range / 2, pars$range / 2, by = pars$dbstep), states = states))
 }
 # create states and settings
 initSettings <- function(machine, appParams, pars, makeStimHelper, domain, minstim, maxval, locs) {
@@ -585,7 +616,7 @@ MOCS.final <- function(state) {
   return(round((state$domain[idx1] + state$domain[idx2]) / 2, 1))
 }
 # PMF for healthy subjects
-healthy_pmf <- function(domain, guess, dbstep) {
+healthy_pmf <- function(domain, guess) {
   pmfh <- data.frame(db = c(-4, -3, -2, -1, 0, 1, 2, 3, 4),
                      p = c(0.03, 0.05, 0.1, 0.2, 0.3, 0.2, 0.05, 0.025, 0.01))
   pmfh$db <- pmfh$db + guess
@@ -593,17 +624,21 @@ healthy_pmf <- function(domain, guess, dbstep) {
   return(pmf / sum(pmf))
 }
 # PMF for glaucoma patients
-glaucoma_pmf <- function(domain, dbstep) {
+glaucoma_pmf <- function(domain) {
   pmfg <- data.frame(db = c(-1, 0, 1, 2, 3, 4),
                      p = c(0.2, 0.3, 0.2, 0.15, 0.1, 0.02))
   pmf <- approx(pmfg$db, pmfg$p, domain, yleft = 0, yright = 0)$y
   return(pmf / sum(pmf))
 }
 # bimodal PMF prior
-bimodal_pmf <- function(domain, guess, dbstep, weight = 4) {
-  pmfb <- healthy_pmf(domain, guess, dbstep) * weight + glaucoma_pmf(domain, dbstep)
+bimodal_pmf <- function(domain, guess, weight = 4) {
+  pmfb <- healthy_pmf(domain, guess) * weight + glaucoma_pmf(domain)
   pmfb[which(pmfb == 0)] <- 0.001
   return(pmfb / sum(pmfb))
+}
+# size PMF prior
+size_pmf <- function(domain, guess) {
+  return(rep(1 / length(domain), length(domain)))
 }
 # Create table of neighboring locations
 findNeighbors <- function(locs) {
@@ -642,7 +677,10 @@ setupNewLocs <- function(states, settings, loc) {
     if(est > settings$minstim) est <- settings$minstim
     # for ZEST, create PMF based on the inherited est
     if(settings$algorithm == "ZEST") {
-      states[[loc]]$pdf <- bimodal_pmf(settings$domain, est, settings$dbstep)
+      if(settings$perimetry == "luminance")
+        states[[loc]]$pdf <- bimodal_pmf(settings$domain, est)
+      else
+        states[[loc]]$pdf <- size_pmf(settings$domain, est)
     }
     # for staircase or full threshold, starting estimate is inherited
     if(settings$algorithm == "staircase" | settings$algorithm == "FT")

@@ -4,10 +4,10 @@ source("modules/serverUtils.r")
 load("config/appParams.rda")
 load("config/grids.rda")
 # setup test
-machine <- "SimHenson"
+machine <- "PhoneHMD"
 eye <- "R"
 perimetry <- "size"
-algorithm <- "MOCS"
+algorithm <- "ZEST"
 grid <- "practice"
 size <- appParams$size
 lum <- appParams$lum
@@ -34,7 +34,7 @@ if(grid == "fovea") {
 } else {
   locs <- grids[[pars$grid]]$locs
 }
-locs$est <- 30
+locs$est <- 10
 setup <- testSetup(machine, appParams, pars, locs)
 states <- setup$states
 settings <- setup$settings
