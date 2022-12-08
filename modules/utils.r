@@ -353,12 +353,26 @@ parsePatientOutput <- function(patient) {
     txt <- errortxt("Please select a patient first")
   } else {
     txt <- paste0("<strong>Patient ID:</strong> ", patient$id, "</br>")
-    txt <- paste0(txt, " <strong>Name:</strong> ",  patient$name, " ", patient$surname, "</br>")
-    txt <- paste0(txt, " <strong>Age:</strong> ", patient$age, ". <strong>Gender:</strong> ", patient$gender, "</br>")
+    txt <- paste0(txt, "<strong>Name:</strong> ",  patient$name, " ", patient$surname, "</br>")
+    txt <- paste0(txt, "<strong>Age:</strong> ", patient$age, ". <strong>Gender:</strong> ", patient$gender, "</br>")
     txt <- paste0(txt, "<strong>Type:</strong> ", patient$type)
   }
   return(HTML(txt))
 }
+# technical test information
+parseTechnicalOutput <- function(lut, bglum, maxlum) {
+  bgidx <- which.min(abs(lut - bglum))
+  bglum <- lut[bgidx]
+  maxlum <- lut[which.min(abs(lut - maxlum))]
+  mind <- lut[bgidx + 1] - lut[bgidx]
+  maxd <- maxlum - bglum
+  txt <- paste0("</br><strong>Bg | max lum:</strong> ", round(bglum, 2), " | ", round(maxlum, 2), " cd/m2</br>")
+  txt <- paste0(txt, "<strong>min step:</strong> ", round(mind, 2), " cd/m2 (",
+                round(cdTodb(mind, maxlum - bglum), 1), " dB)</br>")
+  txt <- paste0(txt, "<strong>max step:</strong> ", round(maxd, 2), " cd/m2 (0 dB)</br>")
+  return(HTML(txt))
+}
+
 # prepare test results to show next to the plot
 renderResult <- function(trialRes, res, npoints) {
   if(is.null(trialRes)) {

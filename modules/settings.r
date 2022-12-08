@@ -17,7 +17,7 @@ settingsUI <- function(id) {
     ),
     fluidRow(
       column(4, selectInput(ns("gammaf"), "Gamma function", choices = choices, selected = appParams$gammaf)),
-      column(4, radioButtons(ns("O900max"), "Perimeter maximum", choiceNames = list("4000 asb", "10000 asb"), choiceValues = list(FALSE, TRUE), selected = appParams$O900max, inline = TRUE)),
+      column(4, radioButtons(ns("O900max"), "Octopus maximum", choiceNames = list("4000 asb", "10000 asb"), choiceValues = list(FALSE, TRUE), selected = appParams$O900max, inline = TRUE)),
       column(4, radioButtons(ns("O900wheel"), "Big Wheel", choiceNames = list("yes", "no"), choiceValues = list(TRUE, FALSE), selected = appParams$O900wheel, inline = TRUE))
     ),
     htmlOutput(ns("pars")),

@@ -7,7 +7,10 @@ clientUI <- function(id) {
                      "Staircase 4-2" = "staircase", "MOCS" = "MOCS")
   tagList(
     fluidRow(
-      column(4, htmlOutput(ns("patient"))),
+      column(4,
+        column(12, fluidRow(htmlOutput(ns("patient")))),
+        column(12, fluidRow(htmlOutput(ns("technical"), style = "font-size:75%")))
+      ),
       column(8,
         fluidRow(
           column(5, selectInput(ns("machine"), "OPI implementation",
@@ -152,12 +155,14 @@ client <- function(input, output, session) {
       updateRadioButtons(session, "perimetry", selected = "luminance")
       disable("perimetry")
     } else enable("perimetry")
-    if(input$machine == "PhoneHMD") # only PhoneHMD can test both eyes
+    if(input$machine == "PhoneHMD") {# only PhoneHMD can test both eyes
       updateSelectInput(session, "eye", choices = list(Right = "R", Left = "L", Both = "B"),
                         selected = input$eye)
-    else {
+      output$technical <- renderUI(parseTechnicalOutput(appParams$lut, appParams$bglum, appParams$maxlum))
+    } else {
       updateSelectInput(session, "eye", choices = list(Right = "R", Left = "L"),
                         selected = ifelse(input$eye == "B", "R", input$eye))
+      output$technical <- renderUI("")
     }
     if(input$machine == "Octopus900") {
       if(appParams$O900max) maxlum <<- 10000 / pi

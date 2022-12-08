@@ -1,0 +1,2 @@
+"id","eye","date","time","age","type","machine","perimetry","algorithm","grid","background","luminance","size","dbstep","estSD","nreps","range","fp","fpt","fpr","fn","fnt","fnr","npres","rt150","rt600","rtsd","rtm","duration","pause","comments","foveadb","l1","l2","l3","l4","l5","l6","l7"
+"test02","R","2022-08-10","21:24:12",95,"GOW","SimHenson","luminance","ZEST","practice",10,5,1.72,1,1.5,10,6,0,3,0,0,1,0,84,21,36,239,652,"00:55","00:00","",30.8,29.8,31.4,28.3,29.1,29.1,32.6,30
