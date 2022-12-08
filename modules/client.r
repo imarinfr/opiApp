@@ -151,15 +151,14 @@ client <- function(input, output, session) {
   ########
   # if machine changes
   observe({
-    if(input$machine == "Octopus900" | input$machine == "SimHenson") { # only luminance available
-      updateRadioButtons(session, "perimetry", selected = "luminance")
-      disable("perimetry")
-    } else enable("perimetry")
-    if(input$machine == "PhoneHMD") {# only PhoneHMD can test both eyes
+    if(input$machine == "PhoneHMD") { # only PhoneHMD can test both eyes and size perimetry
+      enable("perimetry")
       updateSelectInput(session, "eye", choices = list(Right = "R", Left = "L", Both = "B"),
                         selected = input$eye)
       output$technical <- renderUI(parseTechnicalOutput(appParams$lut, appParams$bglum, appParams$maxlum))
     } else {
+      updateRadioButtons(session, "perimetry", selected = "luminance")
+      disable("perimetry")
       updateSelectInput(session, "eye", choices = list(Right = "R", Left = "L"),
                         selected = ifelse(input$eye == "B", "R", input$eye))
       output$technical <- renderUI("")
@@ -167,10 +166,10 @@ client <- function(input, output, session) {
     if(input$machine == "Octopus900") {
       if(appParams$O900max) maxlum <<- 10000 / pi
       else maxlum <<- 4000 / pi
-    } else if(input$machine == "Compass" | substr(input$machine, 1, 3) == "Sim")
-      maxlum <<- 10000 / pi
-    else
+    } else if(input$machine == "PhoneHMD")
       maxlum <<- appParams$maxlum
+    else
+      maxlum <<- 10000 / pi
     msg(paste0("'", input$machine, "' implementation selected. Press 'OPI initialize' to start"))
   }) %>% bindEvent(input$machine)
   # if perimetry type changes
