@@ -265,7 +265,7 @@ phoneDomainZEST <- function(intended, bglum, maxlum, lut, dbstep, offset) {
     if(idx == length(dbLevels)) break
     else dbLevels <- dbLevels[(idx + 1):length(dbLevels)]
   }
-  return(round(domain, 1))
+  return(domain)
 }
 phoneDomainMOCS <- function(intended, bglum, maxlum, lut, dbstep, range, est) {
   dbLevels <- cdTodb(lut[lut > bglum & lut <= maxlum] - bglum, maxlum - bglum)
@@ -284,7 +284,7 @@ phoneDomainMOCS <- function(intended, bglum, maxlum, lut, dbstep, range, est) {
     if(idx == length(dbLevels)) break
     else dbLevels <- dbLevels[(idx + 1):length(dbLevels)]
   }
-  return(round(domain, 1))
+  return(domain)
 }
 initStatesSizeZEST <- function(appParams, pars, minstim, locs) {
   states <- NULL
@@ -412,7 +412,7 @@ testStep <- function(states, settings) {
 }
 testCatchTrial <- function(settings, pars) {
   # return selected location with values for catch trial
-  stim <- settings$makeStimHelper(pars$x, pars$y,settings$respWin)(pars$level, 0)
+  stim <- settings$makeStimHelper(pars$x, pars$y, settings$respWin)(pars$level, 0)
   res <- opiPresent(stim)
   stimInfo <- getStepStimInfo(settings$machine, stim)
   # wait times
@@ -448,8 +448,7 @@ makeStimHelperConstructorPhoneHMDLuminance <- function(appParams, pars) {
       s <- list(eye = pars$eye,
                 x = ifelse(pars$eye == "L", -x, x), y = y,
                 sx = pars$size, sy = pars$size,
-                lum = appParams$bglum +
-                  dbTocd(level, appParams$maxlum - appParams$bglum),
+                lum = appParams$bglum + dbTocd(level, appParams$maxlum - appParams$bglum),
                 col = appParams$stcol, d = appParams$presTime, w = w)
       class(s) <- "opiStaticStimulus"
       return(s)

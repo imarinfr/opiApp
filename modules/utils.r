@@ -426,7 +426,7 @@ renderResult <- function(trialRes, res, npoints) {
   }
   if(x != "") x <- paste(x, "degrees")
   if(y != "") y <- paste(y, "degrees")
-  if(level != "") level <- paste(level, "dB")
+  if(level != "") level <- paste(round(level, 1), "dB")
   if(rtm != "") rtm <- paste(rtm, "ms")
   if(rtsd != "") rtsd <- paste(rtsd, "ms")
   # get state text

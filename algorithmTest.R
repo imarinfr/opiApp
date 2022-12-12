@@ -6,15 +6,15 @@ load("config/grids.rda")
 # setup test
 machine <- "PhoneHMD"
 eye <- "R"
-perimetry <- "size"
-algorithm <- "ZEST"
+perimetry <- "luminance"
+algorithm <- "MOCS"
 grid <- "practice"
 size <- appParams$size
 lum <- appParams$lum
-dbstep <- 1
+dbstep <- 0.5
 estSD <- appParams$estSD
 nreps <- 4
-range <- appParams$range
+range <- 6
 
 statement <- paste("opiInit", machine)
 do.call(what = opiInitialize, args = parseMessage(statement, appParams)$pars)
@@ -34,19 +34,19 @@ if(grid == "fovea") {
 } else {
   locs <- grids[[pars$grid]]$locs
 }
-locs$est <- 10
+locs$est <- 16
 setup <- testSetup(machine, appParams, pars, locs)
 states <- setup$states
 settings <- setup$settings
 
 print("domain:")
 print(states[[1]]$domain)
-while(!all(sapply(states, function(s) settings$stopf(s)))) {
-  rs <- testStep(states, settings)
-  states <- rs$states
-  settings <- rs$settings
-  print(round(sapply(states, function(s) settings$finalf(s)), 1))
-}
+#while(!all(sapply(states, function(s) settings$stopf(s)))) {
+#  rs <- testStep(states, settings)
+#  states <- rs$states
+#  settings <- rs$settings
+#  print(round(sapply(states, function(s) settings$finalf(s)), 1))
+#}
 
 statement <- paste("opiTestCatchTrial", "5", "0", "0", "0")
 pars <- parseMessage(statement, appParams)$pars
