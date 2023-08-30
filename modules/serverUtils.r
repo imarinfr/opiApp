@@ -462,10 +462,10 @@ makeStimHelperConstructorPhoneHMDSize <- function(appParams, pars) {
   makeStimHelper <- function(x, y, w) {  # returns a function of (level,n)
     ff <- function(level, n) level + n
     body(ff) <- substitute({
+      diam <- 2 * sqrt(dbTocd(level, pi * (appParams$maxdiam / 2)^2)) / PI
       s <- list(eye = pars$eye,
                 x = ifelse(pars$eye == "L", -x, x), y = y,
-                sx = dbTocd(level, appParams$maxdiam),
-                sy = dbTocd(level, appParams$maxdiam),
+                sx = diam, sy = diam,
                 lum = appParams$bglum + pars$lum,
                 col = appParams$stcol, d = appParams$presTime, w = w)
       return(s)
