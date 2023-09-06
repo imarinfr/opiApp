@@ -31,8 +31,6 @@ settingsUI <- function(id) {
     ),
     htmlOutput(ns("general")),
     fluidRow(
-      column(2, numericInput(ns("maxlum"), "Max lum", appParams$maxlum)),
-      column(2, numericInput(ns("maxdiam"), "Max diam (\u00B0)", appParams$maxdiam)),
       column(2, numericInput(ns("dbstep"), "Step (dB)", appParams$dbstep)),
       column(2, numericInput(ns("fprate"), "FP rate", appParams$fprate)),
       column(2, numericInput(ns("fnrate"), "FN rate", appParams$fnrate))
@@ -114,8 +112,6 @@ populateDefaults <- function(session) {
   updateColourInput(session, "fixlum", value = appParams$fixlum)
   updateColourInput(session, "fixcol", value = appParams$fixcol)
   updateColourInput(session, "stcol", value = appParams$stcol)
-  updateNumericInput(session, "maxlum", value = appParams$maxlum)
-  updateNumericInput(session, "maxdiam", value = appParams$maxdiam)
   updateNumericInput(session, "dbstep", value = appParams$dbstep)
   updateNumericInput(session, "presTime", value = appParams$presTime)
   updateNumericInput(session, "respWin", value = appParams$respWin)

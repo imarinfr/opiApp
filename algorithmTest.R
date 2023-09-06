@@ -1,17 +1,18 @@
 library(OPI)
 library(deldir)
+source("modules/utils.r")
 source("modules/serverUtils.r")
 load("config/appParams.rda")
 load("config/grids.rda")
 # setup test
 machine <- "PhoneHMD"
 eye <- "R"
-perimetry <- "luminance"
-algorithm <- "MOCS"
+perimetry <- "size"
+algorithm <- "ZEST"
 grid <- "practice"
 size <- appParams$size
 lum <- appParams$lum
-dbstep <- 0.5
+dbstep <- 1
 estSD <- appParams$estSD
 nreps <- 4
 range <- 6
@@ -34,22 +35,21 @@ if(grid == "fovea") {
 } else {
   locs <- grids[[pars$grid]]$locs
 }
-locs$est <- 16
+
 setup <- testSetup(machine, appParams, pars, locs)
 states <- setup$states
 settings <- setup$settings
 
 print("domain:")
 print(states[[1]]$domain)
-#while(!all(sapply(states, function(s) settings$stopf(s)))) {
-#  rs <- testStep(states, settings)
-#  states <- rs$states
-#  settings <- rs$settings
-#  print(round(sapply(states, function(s) settings$finalf(s)), 1))
-#}
-
-statement <- paste("opiTestCatchTrial", "5", "0", "0", "0")
-pars <- parseMessage(statement, appParams)$pars
-res <- testCatchTrial(settings, pars)
+while(!all(sapply(states, function(s) settings$stopf(s)))) {
+  rs <- testStep(states, settings)
+  states <- rs$states
+  settings <- rs$settings
+  print("last presented:")
+  print(round(sapply(states, function(s) ifelse(is.null(tail(s$stimuli, 1)), NA, tail(s$stimuli, 1))), 1))
+  print("estimate:")
+  print(round(sapply(states, function(s) settings$finalf(s)), 1))
+}
 
 opiClose()

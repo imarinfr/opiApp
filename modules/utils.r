@@ -306,6 +306,7 @@ resPlot <- function(res, locs, eye, foveadb, maxlum) {
       cex <- ptcex
     }
     ccol <- res$lum / maxlum * (1 - 1.5 * bglum) + 1.5 * bglum
+    if(ccol < 0 | ccol > 1) browser()
     ccol <- paste0(gray(ccol), alpha)
     draw.circle(res$x, res$y, radius = res$size / 2, col = ccol, border = NA)
     points(res$x, res$y, pch = 19, cex = cex, col = col)
@@ -359,17 +360,20 @@ parsePatientOutput <- function(patient) {
   }
   return(HTML(txt))
 }
+
+# get background and maximum luminance, and dBmax
+getBgMaxLumDb <- function(appParams) {
+  bgidx <- which.min(abs(appParams$lut - appParams$bglum))
+  bglum <- appParams$lut[bgidx]
+  maxlum <- tail(appParams$lut, 1) - bglum
+  mindl <- appParams$lut[bgidx + 1] - bglum
+  list(bglum = bglum, maxlum = maxlum, mindl = mindl, dBmax = round(cdTodb(mindl, maxlum), 1))
+}
 # technical test information
-parseTechnicalOutput <- function(lut, bglum, maxlum) {
-  bgidx <- which.min(abs(lut - bglum))
-  bglum <- lut[bgidx]
-  maxlum <- lut[which.min(abs(lut - maxlum))]
-  mind <- lut[bgidx + 1] - lut[bgidx]
-  maxd <- maxlum - bglum
-  txt <- paste0("</br><strong>Bg | max lum:</strong> ", round(bglum, 2), " | ", round(maxlum, 2), " cd/m2</br>")
-  txt <- paste0(txt, "<strong>min step:</strong> ", round(mind, 2), " cd/m2 (",
-                round(cdTodb(mind, maxlum - bglum), 1), " dB)</br>")
-  txt <- paste0(txt, "<strong>max step:</strong> ", round(maxd, 2), " cd/m2 (0 dB)</br>")
+parseTechnicalOutput <- function(appParams) {
+  bgLumDb <- getBgMaxLumDb(appParams)
+  txt <- paste0("</br><strong>Bg lum | max \u0394L:</strong> ", round(bgLumDb$bglum, 2), " | ", round(bgLumDb$maxlum, 2), " cd/m2</br>")
+  txt <- paste0(txt, "<strong>min \u0394L:</strong> ", round(bgLumDb$mindl, 2), " cd/m2 (", bgLumDb$dBmax, " dB)</br>")
   return(HTML(txt))
 }
 

@@ -85,6 +85,7 @@ opiBackgroundParams <- function(machine, appParams, msg) {
     pars$bgeye <- msg[2]
     pars$fixeye <- msg[3]
     pars$fixtype <- msg[4]
+    if(pars$fixtype == "annulus") pars$fixsy <- pars$fixsx <- 4
   }
   if(machine == "Compass") {
     # use defaults with no fixation
@@ -134,128 +135,160 @@ setupPhoneHMD <- function(machine, appParams, pars, locs)
                 "size" = setupPhoneHMDSize(machine, appParams, pars, locs)))
 # set up for PhoneHMD luminance
 setupPhoneHMDLuminance <- function(machine, appParams, pars, locs) {
-  makeStimHelper <- makeStimHelperConstructorPhoneHMDLuminance(appParams, pars)
   bgidx <- which.min(abs(appParams$lut - appParams$bglum))
   appParams$bglum <- appParams$lut[bgidx] # use the correct background luminance applied from LUT
-  appParams$maxlum <- appParams$lut[which.min(abs(appParams$lut - appParams$maxlum))] # use the correct maximum luminance applied from LUT
+  maxlum <- tail(appParams$lut, 1) - appParams$bglum # use the correct maximum luminance applied from LUT
   minlum <- appParams$lut[bgidx + 1] - appParams$bglum # min incremental value from background
-  minstim <- round(cdTodb(minlum, appParams$maxlum - appParams$bglum), 1)
-  st <- initStates(machine, appParams, pars, minstim, locs)
+  makeStimHelper <- makeStimHelperConstructorPhoneHMDLuminance(appParams, pars, maxlum)
+  dBmax <- round(cdTodb(minlum, maxlum), 1)
+  st <- initStates(machine, appParams, pars, dBmax, locs)
   settings <- initSettings(machine, appParams, pars, makeStimHelper,
-                           st$domain, minstim, minlum, locs)
+                           st$domain, dBmax, maxlum, locs)
   return(list(states = st$states, settings = settings))
 }
 # set up for PhoneHMD size
 setupPhoneHMDSize <- function(machine, appParams, pars, locs) {
+  maxdiam <- 0.43 * sqrt(10000 / pi / pars$lum)
+  dBmax <- 40
   makeStimHelper <- makeStimHelperConstructorPhoneHMDSize(appParams, pars)
-  mindiam <- 0.01 # degrees; approx to Size I
-  minstim <- round(cdTodb(mindiam, appParams$maxdiam), 1)
-  st <- initStatesSize(appParams, pars, minstim, locs)
+  st <- initStatesSize(appParams, pars, dBmax, locs)
   settings <- initSettings(machine, appParams, pars, makeStimHelper,
-                           st$domain, minstim, mindiam, locs)
+                           st$domain, dBmax, maxdiam, locs)
   return(list(states = st$states, settings = settings))
 }
 # set up for Compass
 setupCompass <- function(machine, appParams, pars, locs) {
-  makeStimHelper <- makeStimHelperConstructorCompass(appParams, pars)
-  maxlum <- 10000 / pi
-  minstim <- 50
-  st <- initStates(machine, appParams, pars, minstim, locs)
+  maxlum <- .OpiEnv$Compass$ZERO_DB_IN_ASB / pi
+  dBmax <- ifelse(pars$algorithm == "ZEST", 40, 50)
+  makeStimHelper <- makeStimHelperConstructorCompass(appParams, pars, maxlum)
+  st <- initStates(machine, appParams, pars, dBmax, locs)
   settings <- initSettings(machine, appParams, pars, makeStimHelper,
-                           st$domain, minstim, maxlum, locs)
+                           st$domain, dBmax, maxlum, locs)
   return(list(states = st$states, settings = settings))
 }
 # set up Octopus
 setupOctopus <- function(machine, appParams, pars, locs) {
-  makeStimHelper <- makeStimHelperConstructorO900(appParams, pars)
-  if(appParams$O900max) maxlum <- 10000 / pi
-  else maxlum <- 4000 / pi
-  minstim <- 50
-  st <- initStates(machine, appParams, pars, minstim, locs)
+  maxlum <- ifelse(appParams$O900max, 10000, 4000) / pi
+  dBmax <- ifelse(pars$algorithm == "ZEST", 40, 50)
+  makeStimHelper <- makeStimHelperConstructorO900(appParams, pars, maxlum)
+  st <- initStates(machine, appParams, pars, dBmax, locs)
   settings <- initSettings(machine, appParams, pars, makeStimHelper,
-                           st$domain, minstim, maxlum, locs)
+                           st$domain, dBmax, maxlum, locs)
   return(list(states = st$states, settings = settings))
 }
 # set up IMO
 setupIMO <- function(machine, appParams, pars, locs) {
-  makeStimHelper <- makeStimHelperConstructorIMO(appParams, pars)
   maxlum <- 10000 / pi
-  minstim <- 50
-  st <- initStates(machine, appParams, pars, minstim, locs)
+  dBmax <- ifelse(pars$algorithm == "ZEST", 40, 50)
+  makeStimHelper <- makeStimHelperConstructorIMO(appParams, pars, maxlum)
+  st <- initStates(machine, appParams, pars, dBmax, locs)
   settings <- initSettings(machine, appParams, pars, makeStimHelper,
-                           st$domain, minstim, maxlum, locs)
+                           st$domain, dBmax, maxlum, locs)
   return(list(states = st$states, settings = settings))
 }
 # set up Simulation
 setupSimulation <- function(machine, appParams, pars, locs) {
-  makeStimHelper <- makeStimHelperConstructorSim(appParams, pars)
   maxlum <- 10000 / pi
-  minstim <- 50
-  st <- initStates(machine, appParams, pars, minstim, locs)
+  dBmax <- ifelse(pars$algorithm == "ZEST", 40, 50)
+  makeStimHelper <- makeStimHelperConstructorSim(appParams, pars, maxlum)
+  st <- initStates(machine, appParams, pars, dBmax, locs)
   settings <- initSettings(machine, appParams, pars, makeStimHelper,
-                           st$domain, minstim, maxlum, locs)
+                           st$domain, dBmax, maxlum, locs)
   return(list(states = st$states, settings = settings))
 }
 # create states and settings
-initStates <- function(machine, appParams, pars, minstim, locs)
+initStates <- function(machine, appParams, pars, dBmax, locs)
   return(switch(pars$algorithm,
-                "ZEST" = initStatesZEST(machine, appParams, pars, minstim, locs),
-                "MOCS" = initStatesMOCS(machine, appParams, pars, minstim, locs),
-                "FT" = initStatesFT(pars, minstim, locs),
-                "staircase" = initStatesStaircase(pars, minstim, locs)))
+                "ZEST" = initStatesZEST(machine, appParams, pars, dBmax, locs),
+                "MOCS" = initStatesMOCS(machine, appParams, pars, dBmax, locs),
+                "FT" = initStatesFT(pars, dBmax, locs),
+                "staircase" = initStatesStaircase(pars, dBmax, locs)))
 # create states and settings
-initStatesSize <- function(appParams, pars, minstim, locs)
+initStatesSize <- function(appParams, pars, dBmax, locs)
   return(switch(pars$algorithm,
-                "ZEST" = initStatesSizeZEST(appParams, pars, minstim, locs),
-                "MOCS" = initStatesSizeMOCS(appParams, pars, minstim, locs),
-                "FT" = initStatesFT(pars, minstim, locs),
-                "staircase" = initStatesStaircase(pars, minstim, locs)))
-
-initStatesZEST <- function(machine, appParams, pars, minstim, locs) {
+                "ZEST" = initStatesSizeZEST(appParams, pars, dBmax, locs),
+                "MOCS" = initStatesSizeMOCS(appParams, pars, dBmax, locs),
+                "FT" = initStatesFT(pars, dBmax, locs),
+                "staircase" = initStatesStaircase(pars, dBmax, locs)))
+# init states for ZEST luminance algorithm
+initStatesZEST <- function(machine, appParams, pars, dBmax, locs) {
   states <- NULL
   offset <- 5
-  domain <- seq(0, minstim, by = pars$dbstep)
-  if(machine == "PhoneHMD")
-    domain <- phoneDomainZEST(domain, appParams$bglum, appParams$maxlum, appParams$lut,
-                              pars$dbstep, offset)
+  domain <- seq(0, 40, by = pars$dbstep)
+  if(machine == "PhoneHMD") {
+    domain <- phoneDomainZEST(domain, appParams$bglum, appParams$lut, pars$dbstep, offset)
+    # adjust estimates to the closet feasible stimulus luminance
+    locs$est <- domain[sapply(locs$est, function(est) return(which.min(abs(est - domain))))]
+    dBmax <- tail(domain, 1)
+  }
   tail <- seq(pars$dbstep, offset, by = pars$dbstep)
   domain <- c(-tail[length(tail):1], domain, domain[length(domain)] + tail)
   for(i in 1:nrow(locs))
     states[[i]] <- ZEST.start(domain = domain,
                               prior = bimodal_pmf(domain, locs$est[i], pars$dbstep),
                               stopType = "S", stopValue = pars$estSD,
-                              minStimulus = 0, maxStimulus = minstim,
+                              minStimulus = 0, maxStimulus = dBmax,
                               makeStim = NULL)
   return(list(domain = domain, states = states))
 }
-initStatesMOCS <- function(machine, appParams, pars, minstim, locs) {
+# init states for MOCS luminance algorithm
+initStatesMOCS <- function(machine, appParams, pars, dBmax, locs) {
   states <- NULL
   for(i in 1:nrow(locs)) {
     domain <- locs$est[i] + seq(-pars$range / 2, pars$range / 2, by = pars$dbstep)
-    domain <- domain[domain >= 0 & domain <= minstim]
+    domain <- domain[domain >= 0 & domain <= dBmax]
     if(machine == "PhoneHMD")
-      domain <- phoneDomainMOCS(domain, appParams$bglum, appParams$maxlum, appParams$lut,
+      domain <- phoneDomainMOCS(domain, appParams$bglum, appParams$lut,
                                 pars$dbstep, pars$range, locs$est[i])
-    states[[i]] <- MOCS.start(domain, pars$nreps, minstim)
+    states[[i]] <- MOCS.start(domain, pars$nreps, dBmax)
   }
   return(list(domain = seq(-pars$range / 2, pars$range / 2, by = pars$dbstep), states = states))
 }
-initStatesFT <- function(pars, minstim, locs) {
+# init states for ZEST size algorithm
+initStatesSizeZEST <- function(appParams, pars, dBmax, locs) {
   states <- NULL
-  domain <- seq(0, minstim, by = pars$dbstep)
+  offset <- 5
+  domain <- seq(-offset, dBmax + offset, by = appParams$dbstep)
   for(i in 1:nrow(locs))
-    states[[i]] <- FT.start(est = locs$est[i], instRange = c(0, minstim), makeStim = NULL)
+    states[[i]] <- ZEST.start(domain = domain,
+                              prior = bimodal_pmf(domain, locs$est[i]),
+                              stopType = "S", stopValue = pars$estSD,
+                              minStimulus = 0, maxStimulus = dBmax,
+                              makeStim = NULL)
   return(list(domain = domain, states = states))
 }
-initStatesStaircase <- function(pars, minstim, locs) {
+# init states for MOCS size algorithm
+initStatesSizeMOCS <- function(appParams, pars, dBmax, locs) {
   states <- NULL
-  domain <- seq(0, minstim, by = pars$dbstep)
+  for(i in 1:nrow(locs)) {
+    domain <- locs$est[i] + seq(-pars$range / 2, pars$range / 2, by = pars$dbstep)
+    domain <- domain[domain >= 0 & domain <= dBmax]
+    states[[i]] <- MOCS.start(domain, pars$nreps, dBmax)
+  }
+  return(list(domain = seq(-pars$range / 2, pars$range / 2, by = pars$dbstep), states = states))
+}
+# init states for full threshold for both luminance and size
+initStatesFT <- function(pars, dBmax, locs) {
+  states <- NULL
+  domain <- c(0, dBmax)
   for(i in 1:nrow(locs))
-    states[[i]] <- fourTwo.start(est = locs$est[i], instRange = c(0, minstim), makeStim = NULL)
+    states[[i]] <- FT.start(est = locs$est[i], instRange = c(0, dBmax), makeStim = NULL)
   return(list(domain = domain, states = states))
 }
-phoneDomainZEST <- function(intended, bglum, maxlum, lut, dbstep, offset) {
-  dbLevels <- cdTodb(lut[lut > bglum & lut <= maxlum] - bglum, maxlum - bglum)
+# init states for staircase for both luminance and size
+initStatesStaircase <- function(pars, dBmax, locs) {
+  states <- NULL
+  domain <- c(0, dBmax)
+  for(i in 1:nrow(locs))
+    states[[i]] <- fourTwo.start(est = locs$est[i], instRange = c(0, dBmax), makeStim = NULL)
+  return(list(domain = domain, states = states))
+}
+# get domain for ZEST luminance for phone
+phoneDomainZEST <- function(intended, bglum, lut, dbstep, offset) {
+  intended <- intended - cdTodb(tail(lut, 1) - bglum)
+  intended <- intended[intended >= 0]
+  if(all(intended != 0)) intended <- c(0, intended)
+  dbLevels <- cdTodb(lut[lut > bglum] - bglum, tail(lut, 1) - bglum)
   dbLevels <- dbLevels[length(dbLevels):1]
   domain <- NULL
   while(TRUE) {
@@ -267,8 +300,9 @@ phoneDomainZEST <- function(intended, bglum, maxlum, lut, dbstep, offset) {
   }
   return(domain)
 }
-phoneDomainMOCS <- function(intended, bglum, maxlum, lut, dbstep, range, est) {
-  dbLevels <- cdTodb(lut[lut > bglum & lut <= maxlum] - bglum, maxlum - bglum)
+# get domain for MOCS luminance for phone
+phoneDomainMOCS <- function(intended, bglum, lut, dbstep, range, est) {
+  dbLevels <- cdTodb(lut[lut > bglum] - bglum, tail(lut, 1) - bglum)
   dbLevels <- dbLevels[length(dbLevels):1]
   idx <- head(which(dbLevels >= intended[1]), 1)
   if(idx > 1) idx <- idx - 1
@@ -286,31 +320,8 @@ phoneDomainMOCS <- function(intended, bglum, maxlum, lut, dbstep, range, est) {
   }
   return(domain)
 }
-initStatesSizeZEST <- function(appParams, pars, minstim, locs) {
-  states <- NULL
-  offset <- 5
-  domain <- seq(0, minstim, by = pars$dbstep)
-  tail <- seq(pars$dbstep, offset, by = pars$dbstep)
-  domain <- c(-tail[length(tail):1], domain, domain[length(domain)] + tail)
-  for(i in 1:nrow(locs))
-    states[[i]] <- ZEST.start(domain = domain,
-                              prior = size_pmf(domain, locs$est[i]),
-                              stopType = "S", stopValue = pars$estSD,
-                              minStimulus = 0, maxStimulus = minstim,
-                              makeStim = NULL)
-  return(list(domain = domain, states = states))
-}
-initStatesSizeMOCS <- function(appParams, pars, minstim, locs) {
-  states <- NULL
-  for(i in 1:nrow(locs)) {
-    domain <- locs$est[i] + seq(-pars$range / 2, pars$range / 2, by = pars$dbstep)
-    domain <- domain[domain >= 0 & domain <= minstim]
-    states[[i]] <- MOCS.start(domain, pars$nreps, minstim)
-  }
-  return(list(domain = seq(-pars$range / 2, pars$range / 2, by = pars$dbstep), states = states))
-}
 # create states and settings
-initSettings <- function(machine, appParams, pars, makeStimHelper, domain, minstim, maxval, locs) {
+initSettings <- function(machine, appParams, pars, makeStimHelper, domain, dBmax, maxval, locs) {
   settings <- NULL
   if(pars$algorithm == "ZEST") {
     settings$stepf <- ZEST.step
@@ -342,9 +353,10 @@ initSettings <- function(machine, appParams, pars, makeStimHelper, domain, minst
     # make stimulus helper, locations waves, initial locations, and response window
     settings$makeStimHelper <- makeStimHelper
     settings$domain <- domain
+    settings$bglum <- appParams$bglum
     settings$maxval <- maxval
-    settings$minstim <- minstim
-    settings$maxstim <- 0
+    settings$dBmax <- dBmax
+    settings$dBmin <- 0
     settings$dbstep <- pars$dbstep
     settings$nn <- findNeighbors(locs)
     settings$respWin <- appParams$respWin
@@ -383,11 +395,13 @@ testStep <- function(states, settings) {
     }
   }
   th <- settings$finalf(states[[loc]])
-  th <- ifelse(th > settings$minstim, settings$minstim, th)
+  th <- ifelse(th > settings$dBmax, settings$dBmax, th)
   th <- ifelse(th < 0, 0, th)
   done <- settings$stopf(states[[loc]])
   level <- tail(sr$state$stimuli, 1)
   stimInfo <- getStepStimInfo(settings$machine, states[[loc]]$makeStim(level, 0))
+  if(settings$machine == "PhoneHMD" & settings$perimetry == "luminance")
+    stimInfo$lum <- stimInfo$lum - settings$bglum
   # wait times
   if(sr$resp$seen) {
     isi <- round(runif(1, settings$minISI, max(settings$minISI, mean(settings$movingResp))))
@@ -415,6 +429,8 @@ testCatchTrial <- function(settings, pars) {
   stim <- settings$makeStimHelper(pars$x, pars$y, settings$respWin)(pars$level, 0)
   res <- opiPresent(stim)
   stimInfo <- getStepStimInfo(settings$machine, stim)
+  if(settings$machine == "PhoneHMD" & settings$perimetry == "luminance")
+    stimInfo$lum <- stimInfo$lum - settings$bglum
   # wait times
   if(res$seen) {
     isi <- round(runif(1, settings$minISI, max(settings$minISI, mean(settings$movingResp))))
@@ -441,14 +457,14 @@ getStepStimInfo <- function(machine, stim) {
   return(list(lum = lum, size = size, w = w, col = col))
 }
 # stimulus helper constructor for PhoneHMD luminance
-makeStimHelperConstructorPhoneHMDLuminance <- function(appParams, pars) {
+makeStimHelperConstructorPhoneHMDLuminance <- function(appParams, pars, maxlum) {
   makeStimHelper <- function(x, y, w) {  # returns a function of (level,n)
     ff <- function(level, n) level + n
     body(ff) <- substitute({
       s <- list(eye = pars$eye,
                 x = ifelse(pars$eye == "L", -x, x), y = y,
                 sx = pars$size, sy = pars$size,
-                lum = appParams$bglum + dbTocd(level, appParams$maxlum - appParams$bglum),
+                lum = appParams$bglum + dbTocd(level, maxlum),
                 col = appParams$stcol, d = appParams$presTime, w = w)
       class(s) <- "opiStaticStimulus"
       return(s)
@@ -459,10 +475,11 @@ makeStimHelperConstructorPhoneHMDLuminance <- function(appParams, pars) {
 }
 # stimulus helper constructor for PhoneHMD size
 makeStimHelperConstructorPhoneHMDSize <- function(appParams, pars) {
+  k <- 0.43 * sqrt(10000 / pi / pars$lum)
   makeStimHelper <- function(x, y, w) {  # returns a function of (level,n)
     ff <- function(level, n) level + n
     body(ff) <- substitute({
-      diam <- 2 * sqrt(dbTocd(level, pi * (appParams$maxdiam / 2)^2)) / PI
+      diam <- k * 10^(-level / 20)
       s <- list(eye = pars$eye,
                 x = ifelse(pars$eye == "L", -x, x), y = y,
                 sx = diam, sy = diam,
@@ -475,13 +492,13 @@ makeStimHelperConstructorPhoneHMDSize <- function(appParams, pars) {
   return(makeStimHelper)
 }
 # stimulus helper constructor for IMO
-makeStimHelperConstructorIMO <- function(appParams, pars) {
+makeStimHelperConstructorIMO <- function(appParams, pars, maxlum) {
   makeStimHelper <- function(x, y, w) {  # returns a function of (level,n)
     ff <- function(level, n) level + n
     body(ff) <- substitute({
       s <- list(eye = pars$eye,
                 x = x, y = y,
-                size = pars$size, level = dbTocd(level, appParams$maxlum),
+                size = pars$size, level = dbTocd(level, maxlum),
                 duration = appParams$presTime, responseWindow = w)
       class(s) <- "opiStaticStimulus"
       return(s)
@@ -491,12 +508,12 @@ makeStimHelperConstructorIMO <- function(appParams, pars) {
   return(makeStimHelper)
 }
 # stimulus helper constructor for Compass
-makeStimHelperConstructorCompass <- function(appParams, pars) {
+makeStimHelperConstructorCompass <- function(appParams, pars, maxlum) {
   makeStimHelper <- function(x, y, w) {  # returns a function of (level,n)
     ff <- function(level, n) level + n
     body(ff) <- substitute({
       s <- list(x = x, y = y, size = pars$size,
-                level = dbTocd(level, .OpiEnv$Compass$ZERO_DB_IN_ASB / pi),
+                level = dbTocd(level, maxlum),
                 duration = appParams$presTime, responseWindow = w)
       class(s) <- "opiStaticStimulus"
       return(s)
@@ -506,9 +523,7 @@ makeStimHelperConstructorCompass <- function(appParams, pars) {
   return(makeStimHelper)
 }
 # stimulus helper constructor for Octopus 900
-makeStimHelperConstructorO900 <- function(appParams, pars) {
-  if(appParams$O900max) maxlum <- 10000 / pi
-  else maxlum <- 4000 / pi
+makeStimHelperConstructorO900 <- function(appParams, pars, maxlum) {
   makeStimHelper <- function(x, y, w) {  # returns a function of (level,n)
     ff <- function(level, n) level + n
     body(ff) <- substitute({
@@ -523,12 +538,12 @@ makeStimHelperConstructorO900 <- function(appParams, pars) {
   return(makeStimHelper)
 }
 # stimulus helper constructor for simulations
-makeStimHelperConstructorSim <- function(appParams, pars) {
+makeStimHelperConstructorSim <- function(appParams, pars, maxlum) {
   makeStimHelper <- function(x, y, w) {  # returns a function of (level,n)
     ff <- function(level, n) level + n
     body(ff) <- substitute({
       s <- list(x = x, y = y, size = pars$size,
-                level = dbTocd(level, 10000 / pi),
+                level = dbTocd(level, maxlum),
                 duration = appParams$presTime, responseWindow = w)
       class(s) <- "opiStaticStimulus"
       return(s)
@@ -551,7 +566,7 @@ FT.final2 <- function(state) {
   return(ifelse(is.na(est), state$startingEstimate, est))
 }
 # implementation of MOCS
-MOCS.start <- function(domain, nreps, minstim, makeStim = NULL, ...) {
+MOCS.start <- function(domain, nreps, dBmax, makeStim = NULL, ...) {
   series <- sample(rep(domain, nreps), nreps * length(domain), replace = FALSE)
   return(list(name = "MOCS",
               domain = domain,
@@ -559,7 +574,7 @@ MOCS.start <- function(domain, nreps, minstim, makeStim = NULL, ...) {
               series = series,                 # random series of presentations
               currentLevel = series[1],
               makeStim = makeStim,
-              range = c(minstim, 0),                # range of stimulus for the device
+              range = c(dBmax, 0),                  # range of stimulus for the device
               finished = FALSE,                     # flag to say it is finished
               numPresentations = 0,                 # number of presentations so far
               stimuli = NULL,                       # vector of stims shown
@@ -635,10 +650,6 @@ bimodal_pmf <- function(domain, guess, weight = 4) {
   pmfb[which(pmfb == 0)] <- 0.001
   return(pmfb / sum(pmfb))
 }
-# size PMF prior
-size_pmf <- function(domain, guess) {
-  return(rep(1 / length(domain), length(domain)))
-}
 # Create table of neighboring locations
 findNeighbors <- function(locs) {
   if(nrow(locs) == 1) return(NULL)
@@ -672,15 +683,11 @@ setupNewLocs <- function(states, settings, loc) {
     # select unfinished neighboring locations and
     # calculate average threshold of finished neighboring
     est <- mean(sapply(which(settings$nn[loc,] & done), function(l) settings$finalf(states[[l]])))
-    if(est < settings$maxstim) est <- settings$maxstim
-    if(est > settings$minstim) est <- settings$minstim
+    if(est < settings$dBmin) est <- settings$dBmin
+    if(est > settings$dBmax) est <- settings$dBmax
     # for ZEST, create PMF based on the inherited est
-    if(settings$algorithm == "ZEST") {
-      if(settings$perimetry == "luminance")
-        states[[loc]]$pdf <- bimodal_pmf(settings$domain, est)
-      else
-        states[[loc]]$pdf <- size_pmf(settings$domain, est)
-    }
+    if(settings$algorithm == "ZEST")
+      states[[loc]]$pdf <- bimodal_pmf(settings$domain, est)
     # for staircase or full threshold, starting estimate is inherited
     if(settings$algorithm == "staircase" | settings$algorithm == "FT")
       states[[loc]]$startingEstimate <- est

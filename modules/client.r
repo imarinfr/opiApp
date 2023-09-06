@@ -82,6 +82,7 @@ client <- function(input, output, session) {
   locs <- NULL
   # define routine to initialized all run control variables
   tp0 <- tt <- tp <- tt0 <- NULL
+  bglum <- NULL
   maxlum <- NULL
   #########
   # Outputs
@@ -155,7 +156,7 @@ client <- function(input, output, session) {
       enable("perimetry")
       updateSelectInput(session, "eye", choices = list(Right = "R", Left = "L", Both = "B"),
                         selected = input$eye)
-      output$technical <- renderUI(parseTechnicalOutput(appParams$lut, appParams$bglum, appParams$maxlum))
+      output$technical <- renderUI(parseTechnicalOutput(appParams))
     } else {
       updateRadioButtons(session, "perimetry", selected = "luminance")
       disable("perimetry")
@@ -164,17 +165,21 @@ client <- function(input, output, session) {
       output$technical <- renderUI("")
     }
     if(input$machine == "Octopus900") {
-      if(appParams$O900max) maxlum <<- 10000 / pi
-      else maxlum <<- 4000 / pi
-    } else if(input$machine == "PhoneHMD")
-      maxlum <<- appParams$maxlum
-    else
+      bglum <<- appParams$bglum
+      maxlum <<- ifelse(appParams$O900max, 10000, 4000) / pi
+    } else if(input$machine == "PhoneHMD") {
+      bgMaxLumDb <- getBgMaxLumDb(appParams)
+      bglum <<- bgMaxLumDb$bglum
+      maxlum <<- bgMaxLumDb$maxlum
+    } else {
+      bglum <<- appParams$bglum
       maxlum <<- 10000 / pi
+    }
     msg(paste0("'", input$machine, "' implementation selected. Press 'OPI initialize' to start"))
   }) %>% bindEvent(input$machine)
   # if perimetry type changes
   observe({
-    if(input$machine == "Octopus900" | input$machine == "SimHenson") {
+    if(input$machine == "Octopus900" | input$machine == "Compass") {
       updateRadioButtons(session, "perimetry", selected = "luminance")
       disable("perimetry")
     } else enable("perimetry")
@@ -381,7 +386,7 @@ client <- function(input, output, session) {
       ShinySender$push(title = "opiStatement", message = "opiTestStepRun")
     }
     if(type == "FP") {
-      pars <- falsePositivePars(input$machine, input$perimetry, appParams$bglum, maxlum, locs, input$eye)
+      pars <- falsePositivePars(input$machine, input$perimetry, bglum, maxlum, locs, input$eye)
       statement <- paste("opiTestCatchTrial", pars$loc, pars$x, pars$y, pars$db)
       ShinySender$push(title = "opiStatement", message = statement)
     }
@@ -440,6 +445,7 @@ client <- function(input, output, session) {
     if(runType == "F") msg("Test finished at fovea")
     else msg("Test finished")
     if(sum(res$type == "N") > 0) enableElements(c("save", "cancel"))
+    else enableElements("close")
   }
   ##########
   # Routines
@@ -515,7 +521,7 @@ client <- function(input, output, session) {
     if(input$perimetry == "luminance") val <- input$size
     else val <- input$lum
     dat <- prepareToSave(patient(), input$machine, input$perimetry, input$algorithm,
-                         input$grid, input$eye, appParams$bglum, input$lum, input$size,
+                         input$grid, input$eye, bglum, input$lum, input$size,
                          input$dbstep, input$estSD, input$nreps, input$range,
                          tdate, ttime, input$comments, res, foveadb, locs)
     # if file exist, append result

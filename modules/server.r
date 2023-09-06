@@ -44,10 +44,14 @@ server <- future({
     # OPI Test Init
     ###############
     if(cmd == "opiTestInit") {
-      if(pars$grid == "fovea")
-        locs <- data.frame(x = 0, y = 0, w = 1, est = round(cdTodb(dbTocd(30), appParams$maxlum)))
-      else
+      if(pars$grid == "fovea") {
+        locs <- data.frame(x = 0, y = 0, w = 1, est = 30)
+      } else
         locs <- grids[[pars$grid]]$locs
+      if(chooseOPI()[.OpiEnv$chooser] == "PhoneHMD" & pars$perimetry == "luminance") {
+        maxlum <- tail(appParams$lut, 1) - appParams$lut[which.min(abs(appParams$lut - appParams$bglum))]
+        locs$est <- round(cdTodb(dbTocd(30), maxlum), 1)
+      }
       res <- tryCatch({
         setup <- testSetup(chooseOPI()[.OpiEnv$chooser], appParams, pars, locs)
         states <- setup$states
