@@ -475,11 +475,11 @@ makeStimHelperConstructorPhoneHMDLuminance <- function(appParams, pars, maxlum) 
 }
 # stimulus helper constructor for PhoneHMD size
 makeStimHelperConstructorPhoneHMDSize <- function(appParams, pars) {
-  k <- 0.43 * sqrt(10000 / pi / pars$lum)
+  maxdiam <- 10
   makeStimHelper <- function(x, y, w) {  # returns a function of (level,n)
     ff <- function(level, n) level + n
     body(ff) <- substitute({
-      diam <- k * 10^(-level / 20)
+      diam <- maxdiam * 10^(-level / 20)
       s <- list(eye = pars$eye,
                 x = ifelse(pars$eye == "L", -x, x), y = y,
                 sx = diam, sy = diam,
