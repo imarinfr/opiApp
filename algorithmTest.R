@@ -5,11 +5,11 @@ source("modules/serverUtils.r")
 load("config/appParams.rda")
 load("config/grids.rda")
 # setup test
-machine <- "PhoneHMD"
+machine <- "SimHenson"
 eye <- "R"
 perimetry <- "size"
 algorithm <- "ZEST"
-grid <- "practice"
+grid <- "asymmetric"
 size <- appParams$size
 lum <- appParams$lum
 dbstep <- 1
@@ -51,5 +51,9 @@ while(!all(sapply(states, function(s) settings$stopf(s)))) {
   print("estimate:")
   print(round(sapply(states, function(s) settings$finalf(s)), 1))
 }
+
+statement <- paste("opiTestCatchTrial", 5, 0, 0, 0)
+pars <- parseMessage(statement, appParams)$pars
+res <- testCatchTrial(settings, pars)
 
 opiClose()

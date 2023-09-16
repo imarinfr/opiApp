@@ -195,6 +195,8 @@ gridgen <- function(input, output, session) {
     # remove empty rows if any
     idx <- which(apply(ll, 1, function(row) all(is.na(row[1]) & is.na(row[2]))))
     if(length(idx) > 0) ll <- ll[-idx,]
+    # remove duplicates
+    ll <- unique(ll)
     if(any(is.na(ll)))
       errorMessage("Please fill uncomplete rows before saving")
     else {

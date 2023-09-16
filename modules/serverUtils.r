@@ -36,7 +36,7 @@ parseMessage <- function(msg, appParams) {
   }
   if(cmd == "opiTestStepRun") if(length(msg) != 1) return(NULL)
   if(cmd == "opiTestCatchTrial") {
-    if(length(msg) != 5) return(NULL)
+    if(length(msg) != 6) return(NULL)
     pars <- opiTestCatchTrialParams(msg)
   }
   if(cmd == "opiTestEnd") if(length(msg) != 1) return(NULL)
@@ -114,9 +114,9 @@ opiTestInitParams <- function(msg)
               dbstep = as.numeric(msg[8]), estSD = as.numeric(msg[9]),
               nreps = as.numeric(msg[10]), range = as.numeric(msg[11])))
 opiTestCatchTrialParams <- function(msg)
-  return(list(loc = as.numeric(msg[2]),
-              x = as.numeric(msg[3]), y = as.numeric(msg[4]),
-              level = as.numeric(msg[5])))
+  return(list(loc = as.numeric(msg[2]), eye = msg[3],
+              x = as.numeric(msg[4]), y = as.numeric(msg[5]),
+              level = as.numeric(msg[6])))
 # prepare test settings
 testSetup <- function(machine, appParams, pars, locs) {
   # get the rest of algorithm-dependent parameters
@@ -148,9 +148,9 @@ setupPhoneHMDLuminance <- function(machine, appParams, pars, locs) {
 }
 # set up for PhoneHMD size
 setupPhoneHMDSize <- function(machine, appParams, pars, locs) {
-  maxdiam <- 0.43 * sqrt(10000 / pi / pars$lum)
+  maxdiam <- 10
   dBmax <- 40
-  makeStimHelper <- makeStimHelperConstructorPhoneHMDSize(appParams, pars)
+  makeStimHelper <- makeStimHelperConstructorPhoneHMDSize(appParams, pars, maxdiam)
   st <- initStatesSize(appParams, pars, dBmax, locs)
   settings <- initSettings(machine, appParams, pars, makeStimHelper,
                            st$domain, dBmax, maxdiam, locs)
@@ -436,8 +436,8 @@ testCatchTrial <- function(settings, pars) {
     isi <- round(runif(1, settings$minISI, max(settings$minISI, mean(settings$movingResp))))
     Sys.sleep(isi / 1000)
   }
-  return(list(loc = pars$loc, x = stim$x, y = stim$y,
-              level = -1, seen = res$seen,
+  return(list(loc = pars$loc, x = ifelse(pars$eye == "R", stim$x, -stim$x), y = stim$y,
+              level = pars$level, seen = res$seen,
               time = res$time, respWin = stimInfo$w,
               done = FALSE, th = -1,
               lum = stimInfo$lum, size = stimInfo$size, col = stimInfo$col))
@@ -474,8 +474,7 @@ makeStimHelperConstructorPhoneHMDLuminance <- function(appParams, pars, maxlum) 
   return(makeStimHelper)
 }
 # stimulus helper constructor for PhoneHMD size
-makeStimHelperConstructorPhoneHMDSize <- function(appParams, pars) {
-  maxdiam <- 10
+makeStimHelperConstructorPhoneHMDSize <- function(appParams, pars, maxdiam) {
   makeStimHelper <- function(x, y, w) {  # returns a function of (level,n)
     ff <- function(level, n) level + n
     body(ff) <- substitute({
@@ -497,7 +496,7 @@ makeStimHelperConstructorIMO <- function(appParams, pars, maxlum) {
     ff <- function(level, n) level + n
     body(ff) <- substitute({
       s <- list(eye = pars$eye,
-                x = x, y = y,
+                x = ifelse(pars$eye == "L", -x, x), y = y,
                 size = pars$size, level = dbTocd(level, maxlum),
                 duration = appParams$presTime, responseWindow = w)
       class(s) <- "opiStaticStimulus"
@@ -512,8 +511,8 @@ makeStimHelperConstructorCompass <- function(appParams, pars, maxlum) {
   makeStimHelper <- function(x, y, w) {  # returns a function of (level,n)
     ff <- function(level, n) level + n
     body(ff) <- substitute({
-      s <- list(x = x, y = y, size = pars$size,
-                level = dbTocd(level, maxlum),
+      s <- list(x = ifelse(pars$eye == "L", -x, x), y = y,
+                size = pars$size, level = dbTocd(level, maxlum),
                 duration = appParams$presTime, responseWindow = w)
       class(s) <- "opiStaticStimulus"
       return(s)
@@ -527,8 +526,8 @@ makeStimHelperConstructorO900 <- function(appParams, pars, maxlum) {
   makeStimHelper <- function(x, y, w) {  # returns a function of (level,n)
     ff <- function(level, n) level + n
     body(ff) <- substitute({
-      s <- list(x = x, y = y, size = pars$size,
-                level = dbTocd(level, maxlum),
+      s <- list(x = ifelse(pars$eye == "L", -x, x), y = y,
+                size = pars$size, level = dbTocd(level, maxlum),
                 duration = appParams$presTime, responseWindow = w)
       class(s) <- "opiStaticStimulus"
       return(s)
@@ -538,12 +537,13 @@ makeStimHelperConstructorO900 <- function(appParams, pars, maxlum) {
   return(makeStimHelper)
 }
 # stimulus helper constructor for simulations
+# we use the same for luminance and size for simulations.
 makeStimHelperConstructorSim <- function(appParams, pars, maxlum) {
   makeStimHelper <- function(x, y, w) {  # returns a function of (level,n)
     ff <- function(level, n) level + n
     body(ff) <- substitute({
-      s <- list(x = x, y = y, size = pars$size,
-                level = dbTocd(level, maxlum),
+      s <- list(x = ifelse(pars$eye == "L", -x, x), y = y,
+                size = pars$size, level = dbTocd(level, maxlum),
                 duration = appParams$presTime, responseWindow = w)
       class(s) <- "opiStaticStimulus"
       return(s)

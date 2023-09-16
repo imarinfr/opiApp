@@ -28,7 +28,7 @@ server <- future({
       if(is.null(res) || is.null(res$err))
         ShinyReceiver$push("OK", paste0("OPI server: OPI initialized for '", chooseOPI()[.OpiEnv$chooser], "'"))
       else
-        ShinyReceiver$push("ERR", paste("OPI server:", res))
+        ShinyReceiver$push("ERR", paste("OPI server, opiInit:", res))
     }
     ####################
     # OPI Set Background
@@ -38,7 +38,7 @@ server <- future({
       if(is.null(res) || is.null(res$error))
         ShinyReceiver$push("OK", "OPI server: background changed")
       else
-        ShinyReceiver$push("ERR", paste("OPI server:", res))
+        ShinyReceiver$push("ERR", paste("OPI server, opiSetBackground:", res))
     }
     ###############
     # OPI Test Init
@@ -64,7 +64,7 @@ server <- future({
       if(is.null(res)) {
         ShinyReceiver$push("OK", "OPI server: test settings ready")
       } else
-        ShinyReceiver$push("ERR", paste("OPI server:", res))
+        ShinyReceiver$push("ERR", paste("OPI server, opiTestInit:", res))
     }
     ###################
     # OPI Test Step Run
@@ -84,7 +84,7 @@ server <- future({
         res <- tryCatch(returnResults(rs$res), error = function(e) e$message)
       }
       else
-        ShinyReceiver$push("ERR", paste("OPI server:", res))
+        ShinyReceiver$push("ERR", paste("OPI server, opiTestStepRun:", res))
     }
     ######################
     # OPI TEST Catch Trial
@@ -100,7 +100,7 @@ server <- future({
         res <- tryCatch(returnResults(catch), error = function(e) e$message)
       }
       else
-        ShinyReceiver$push("ERR", paste("OPI server:", res))
+        ShinyReceiver$push("ERR", paste("OPI server, opiTestCatchTrial:", res))
     }
     ##############
     # OPI Test End

@@ -31,6 +31,7 @@ settingsUI <- function(id) {
     ),
     htmlOutput(ns("general")),
     fluidRow(
+      column(4, radioButtons(ns("perimetry"), "Default perimetry", inline = TRUE, choices = c("luminance", "size"), selected = appParams$perimetry)),
       column(2, numericInput(ns("dbstep"), "Step (dB)", appParams$dbstep)),
       column(2, numericInput(ns("fprate"), "FP rate", appParams$fprate)),
       column(2, numericInput(ns("fnrate"), "FN rate", appParams$fnrate))
@@ -119,6 +120,7 @@ populateDefaults <- function(session) {
   updateNumericInput(session, "minRespWin", value = appParams$minRespWin)
   updateNumericInput(session, "slidWidth", value = appParams$slidWidth)
   updateNumericInput(session, "minISI", value = appParams$minISI)
+  updateNumericInput(session, "perimetry", value = appParams$perimetry)
   updateNumericInput(session, "fprate", value = appParams$fprate)
   updateNumericInput(session, "fnrate", value = appParams$fnrate)
   updateNumericInput(session, "estSD", value = appParams$estSD)

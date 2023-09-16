@@ -16,7 +16,7 @@ clientUI <- function(id) {
           column(5, selectInput(ns("machine"), "OPI implementation",
                                 choices = opiImpl, selected = appParams$machine)),
           column(5, radioButtons(ns("perimetry"), "Perimetry", inline = TRUE,
-                                 choices = c("luminance", "size"), selected = "luminance"))
+                                 choices = c("luminance", "size"), selected = appParams$perimetry))
         ),
         fluidRow(
           column(3, selectInput(ns("eye"), "Eye", choices = list(Right = "R", Left = "L", Both = "B"), selected = "Both")),
@@ -152,7 +152,7 @@ client <- function(input, output, session) {
   ########
   # if machine changes
   observe({
-    if(input$machine == "PhoneHMD") { # only PhoneHMD can test both eyes and size perimetry
+    if(input$machine == "PhoneHMD" | substr(input$machine, 1, 3) == "Sim") { # only PhoneHMD and simulations can test both eyes and size perimetry
       enable("perimetry")
       updateSelectInput(session, "eye", choices = list(Right = "R", Left = "L", Both = "B"),
                         selected = input$eye)
@@ -387,13 +387,13 @@ client <- function(input, output, session) {
     }
     if(type == "FP") {
       pars <- falsePositivePars(input$machine, input$perimetry, bglum, maxlum, locs, input$eye)
-      statement <- paste("opiTestCatchTrial", pars$loc, pars$x, pars$y, pars$db)
+      statement <- paste("opiTestCatchTrial", pars$loc, input$eye, pars$x, pars$y, pars$db)
       ShinySender$push(title = "opiStatement", message = statement)
     }
     if(type == "FN") {
       pars <- falseNegativePars(locs, res, input$eye)
       if(!is.null(pars)) {
-        statement <- paste("opiTestCatchTrial", pars$loc, pars$x, pars$y, pars$db)
+        statement <- paste("opiTestCatchTrial", pars$loc, input$eye, pars$x, pars$y, pars$db)
         ShinySender$push(title = "opiStatement", message = statement)
       } else ShinyReceiver$push("FN", "No suitable locations for FN catch trial. Moving on")
     }
@@ -466,7 +466,6 @@ client <- function(input, output, session) {
     }
     if(type == "A" || type == "N") {
       locs <<- grids[[input$grid]]$locs
-      if(input$eye == "L") locs$x <<- -locs$x
       locs$th <<- NA
       locs$done <<- FALSE
       # remove all results but those at the fovea

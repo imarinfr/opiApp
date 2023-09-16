@@ -16,8 +16,6 @@ templatePlot <- function(locs, eye, expf = 1.05, lty = 1, lwd = 1,
                          ellipseColor = "gray92", new = FALSE) {
   rad <- 1.5
   par(mar = c(0, 0, 0, 0), bg = bg, ps = ps, new = new)
-  if(eye == "L") x <- -15
-  else x <- 15
   xlim <- c(-30, 30)
   ylim <- c(-30, 30)
   if(!all(is.na(locs$x))) {
@@ -31,15 +29,18 @@ templatePlot <- function(locs, eye, expf = 1.05, lty = 1, lwd = 1,
   xlim <- 10 * sign(xlim) * ceiling(abs(xlim / 10))
   ylim <- 10 * sign(ylim) * ceiling(abs(ylim / 10))
   r <- max(c(xlim, ylim))
-  plot(0, 0, typ = "n", xlim = expf * xlim, ylim = expf * ylim, asp = 1,
+  xlimeye <- xlim
+  if(eye == "L") xlimeye <- rev(xlim)
+  plot(0, 0, typ = "n", xlim = expf * xlimeye, ylim = expf * ylim, asp = 1,
        axes = FALSE, ann = FALSE, bty = "n")
-  draw.ellipse(x, -1.5, 2.75, 3.75, col = ellipseColor, border = ellipseColor)
+  draw.ellipse(15, -1.5, 2.75, 3.75, col = ellipseColor, border = ellipseColor)
   lines(c(xlim[1], -rad), c(0, 0), col = linCol, lty = lty, lwd = lwd)
   lines(c(rad, xlim[2]), c(0, 0), col = linCol, lty = lty, lwd = lwd)
   lines(c(0, 0), c(ylim[1], -rad), col = linCol, lty = lty, lwd = lwd)
   lines(c(0, 0), c(rad, ylim[2]), col = linCol, lty = lty, lwd = lwd)
-  text(expf * xlim[1], 0, xlim[1], adj = c(1, 0.5), col = linCol)
-  text(expf * xlim[2], 0, xlim[2], adj = c(0, 0.5), col = linCol)
+  xadj <- ifelse(eye == "L", 0, 1)
+  text(expf * xlim[1], 0, xlimeye[1], adj = c(xadj, 0.5), col = linCol)
+  text(expf * xlim[2], 0, xlimeye[2], adj = c(1 - xadj, 0.5), col = linCol)
   text(0, expf * ylim[1], ylim[1], adj = c(0.5, 1), col = linCol)
   text(0, expf * ylim[2], ylim[2], adj = c(0.5, 0), col = linCol)
   draw.circle(0, 0, rad, border = linCol, lwd = lwd)
@@ -300,13 +301,11 @@ resPlot <- function(res, locs, eye, foveadb, maxlum) {
       foveadb <- NA
       cex <- 0
     } else {
-      if(eye == "L") res$x <- -res$x
       col <- cols[locs$w[res$loc]]
       locs <- locs[-res$loc,]
       cex <- ptcex
     }
-    ccol <- res$lum / maxlum * (1 - 1.5 * bglum) + 1.5 * bglum
-    if(ccol < 0 | ccol > 1) browser()
+    ccol <- round(res$lum / maxlum * (1 - 1.5 * bglum) + 1.5 * bglum, 2)
     ccol <- paste0(gray(ccol), alpha)
     draw.circle(res$x, res$y, radius = res$size / 2, col = ccol, border = NA)
     points(res$x, res$y, pch = 19, cex = cex, col = col)
@@ -317,15 +316,10 @@ resPlot <- function(res, locs, eye, foveadb, maxlum) {
   if(any(!isna)) text(locs$x[!isna], locs$y[!isna], round(locs$th[!isna]), col = cols[locs$w[!isna]], font = 2)
 }
 falsePositivePars <- function(machine, perimetry, bglum, maxlum, locs, eye) {
-  if(perimetry == "luminance" & machine == "PhoneHMD")
-    db <- cdTodb(bglum, maxlum)
-  else
-    db <- 50
+  db <- 50
   # generate an invisible stimulus
   loc <- sample(1:nrow(locs), 1)
-  x <- ifelse(eye == "L", -locs$x[loc], locs$x[loc])
-  y <- locs$y[loc]
-  return(data.frame(loc = loc, x = x, y = y, db = db))
+  return(data.frame(loc = loc, x = locs$x[loc], y = locs$y[loc], db = db))
 }
 falseNegativePars <- function(locs, res, eye) {
   # keep only the dimmest stimulus and select one at random
@@ -335,12 +329,9 @@ falseNegativePars <- function(locs, res, eye) {
   for(i in 1:nrow(ur))
     res$db[i] <- min(res$level[which(res$x == ur$x[i] & res$y == ur$y[i])])
   idx <- sample(1:nrow(res), 1)
-  db <- ifelse(res$db[idx] < 5, 0, res$db[idx] - 5) # TODO criterion. So far, I subtract 5 db
+  db <- ifelse(res$db[idx] < 5, 0, res$db[idx] - 5) # generate a clearly visible stimulus I subtract 5 db
   loc <- which(locs$x == res$x[idx] & locs$y == res$y[idx])
-  x <- ifelse(eye == "L", -locs$x[loc], locs$x[loc])
-  y <- locs$y[loc]
-  # generate a very visible stimulus
-  return(data.frame(loc = loc, x = x, y = y, db = db))
+  return(data.frame(loc = loc, x = locs$x[loc], y = locs$y[loc], db = db))
 }
 enableElements <- function(ids) lapply(ids, enable)
 disableElements <- function(ids) lapply(ids, disable)
