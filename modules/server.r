@@ -50,7 +50,7 @@ server <- future({
         locs <- grids[[pars$grid]]$locs
       if(chooseOPI()[.OpiEnv$chooser] == "PhoneHMD" & pars$perimetry == "luminance") {
         maxlum <- tail(appParams$lut, 1) - appParams$lut[which.min(abs(appParams$lut - appParams$bglum))]
-        locs$est <- round(cdTodb(dbTocd(30), maxlum), 1)
+        locs$est <- round(cdTodb(dbTocd(locs$est), maxlum), 1)
       }
       res <- tryCatch({
         setup <- testSetup(chooseOPI()[.OpiEnv$chooser], appParams, pars, locs)

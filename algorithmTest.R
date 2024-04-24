@@ -5,16 +5,16 @@ source("modules/serverUtils.r")
 load("config/appParams.rda")
 load("config/grids.rda")
 # setup test
-machine <- "SimHenson"
+machine <- "PhoneHMD"
 eye <- "R"
-perimetry <- "size"
-algorithm <- "ZEST"
-grid <- "asymmetric"
+perimetry <- "luminance"
+algorithm <- "MOCS"
+grid <- "FOS3"
 size <- appParams$size
 lum <- appParams$lum
 dbstep <- 1
 estSD <- appParams$estSD
-nreps <- 4
+nreps <- 2
 range <- 6
 
 statement <- paste("opiInit", machine)
@@ -27,8 +27,22 @@ if(machine == "PhoneHMD") {
 }
 do.call(what = opiSetBackground, args = parseMessage(statement, appParams)$pars)
 
+
 statement <- paste("opiTestInit", eye, perimetry, algorithm, grid,
                    size, lum, dbstep, estSD, nreps, range)
+pars <- parseMessage(statement, appParams)$pars
+if(pars$grid == "fovea") {
+  locs <- data.frame(x = 0, y = 0, w = 1, est = 30)
+} else
+  locs <- grids[[pars$grid]]$locs
+if(chooseOPI()[.OpiEnv$chooser] == "PhoneHMD" & pars$perimetry == "luminance") {
+  maxlum <- tail(appParams$lut, 1) - appParams$lut[which.min(abs(appParams$lut - appParams$bglum))]
+  locs$est <- round(cdTodb(dbTocd(locs$est), maxlum), 1)
+}
+setup <- testSetup(chooseOPI()[.OpiEnv$chooser], appParams, pars, locs)
+states <- setup$states
+settings <- setup$settings
+
 pars <- parseMessage(statement, appParams)$pars
 if(grid == "fovea") {
   locs <- data.frame(x = 0, y = 0, w = 1, est = 30)
@@ -36,6 +50,10 @@ if(grid == "fovea") {
   locs <- grids[[pars$grid]]$locs
 }
 
+if(chooseOPI()[.OpiEnv$chooser] == "PhoneHMD" & pars$perimetry == "luminance") {
+  maxlum <- tail(appParams$lut, 1) - appParams$lut[which.min(abs(appParams$lut - appParams$bglum))]
+  locs$est <- round(cdTodb(dbTocd(locs$est), maxlum), 1)
+}
 setup <- testSetup(machine, appParams, pars, locs)
 states <- setup$states
 settings <- setup$settings
@@ -51,9 +69,5 @@ while(!all(sapply(states, function(s) settings$stopf(s)))) {
   print("estimate:")
   print(round(sapply(states, function(s) settings$finalf(s)), 1))
 }
-
-statement <- paste("opiTestCatchTrial", 5, 0, 0, 0)
-pars <- parseMessage(statement, appParams)$pars
-res <- testCatchTrial(settings, pars)
 
 opiClose()

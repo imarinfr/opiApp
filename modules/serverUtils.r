@@ -295,10 +295,10 @@ phoneDomainZEST <- function(intended, bglum, lut, dbstep, offset) {
     idx <- which.min(abs(dbLevels - intended[1]))
     domain <- c(domain, dbLevels[idx])
     intended <- intended[intended > tail(domain, 1) + dbstep / 2]
-    if(idx == length(dbLevels)) break
+    if(length(intended) == 0 | idx == length(dbLevels)) break
     else dbLevels <- dbLevels[(idx + 1):length(dbLevels)]
   }
-  return(domain)
+  return(round(domain, 1))
 }
 # get domain for MOCS luminance for phone
 phoneDomainMOCS <- function(intended, bglum, lut, dbstep, range, est) {
@@ -315,10 +315,10 @@ phoneDomainMOCS <- function(intended, bglum, lut, dbstep, range, est) {
     idx <- which.min(abs(dbLevels - intended[1]))
     domain <- c(domain, dbLevels[idx])
     intended <- intended[intended > tail(domain, 1) + dbstep / 2]
-    if(idx == length(dbLevels)) break
+    if(length(intended) == 0 | idx == length(dbLevels)) break
     else dbLevels <- dbLevels[(idx + 1):length(dbLevels)]
   }
-  return(domain)
+  return(round(domain, 1))
 }
 # create states and settings
 initSettings <- function(machine, appParams, pars, makeStimHelper, domain, dBmax, maxval, locs) {
