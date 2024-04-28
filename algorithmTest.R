@@ -14,7 +14,7 @@ size <- appParams$size
 lum <- appParams$lum
 dbstep <- 1
 estSD <- appParams$estSD
-nreps <- 2
+nreps <- 3
 range <- 6
 
 statement <- paste("opiInit", machine)

@@ -235,7 +235,10 @@ initStatesZEST <- function(machine, appParams, pars, dBmax, locs) {
 initStatesMOCS <- function(machine, appParams, pars, dBmax, locs) {
   states <- NULL
   for(i in 1:nrow(locs)) {
-    domain <- locs$est[i] + seq(-pars$range / 2, pars$range / 2, by = pars$dbstep)
+    est <- locs$est[i]
+    if(est < 0) est <- 0
+    if(est > dBmax) est <- dBmax
+    domain <- est + seq(-pars$range / 2, pars$range / 2, by = pars$dbstep)
     domain <- domain[domain >= 0 & domain <= dBmax]
     if(machine == "PhoneHMD")
       domain <- phoneDomainMOCS(domain, appParams$bglum, appParams$lut,
